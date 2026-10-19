@@ -99,7 +99,7 @@ export function CommandPalette({ prefill, commands, onOpenTask, onClose }: Props
           autoFocus
           fullWidth
           variant="standard"
-          placeholder="Type a command, view, tag or task…"
+          placeholder="Type a command, tag or task…"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);

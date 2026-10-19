@@ -272,7 +272,7 @@ func (s *Service) RenameTag(ctx context.Context, userID int64, in RenameInput) (
 		return nil, err
 	}
 	if prev.Applied {
-		s.publish(userID, "tags", "tasks", "timers", "views")
+		s.publish(userID, "tags", "tasks", "timers")
 	}
 	return &prev, nil
 }

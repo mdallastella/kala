@@ -50,14 +50,6 @@ export interface Namespace {
   values: NamespaceValue[];
 }
 
-export interface View {
-  id: number;
-  name: string;
-  query: string;
-  position: number;
-  builtin: boolean;
-}
-
 export interface TimeEntry {
   id: number;
   task_id: number;

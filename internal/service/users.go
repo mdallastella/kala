@@ -51,8 +51,8 @@ func validateTimezone(tz string) error {
 	return nil
 }
 
-// Register creates a user with the default namespaces, views and working
-// hours. allowSignup is consulted only when users already exist.
+// Register creates a user with the default namespaces and working hours.
+// allowSignup is consulted only when users already exist.
 func (s *Service) Register(ctx context.Context, email, password, timezone string, allowSignup bool) (*User, error) {
 	addr, err := mail.ParseAddress(email)
 	if err != nil || addr.Address != strings.TrimSpace(email) {
@@ -101,24 +101,9 @@ func (s *Service) Register(ctx context.Context, email, password, timezone string
 	return s.Me(ctx, id)
 }
 
-// DefaultViews are seeded for every user.
-var DefaultViews = []struct{ Name, Query string }{
-	{"Today", "is:open due:<=today"},
-	{"Upcoming", "is:open due:week sort:due,priority"},
-	{"Overdue", "is:open due:overdue sort:due"},
-	{"Inbox", "is:open -project:"},
-	{"All open", "is:open"},
-}
-
 func seedUser(ctx context.Context, tx *sql.Tx, userID int64) error {
 	for _, ns := range tags.Seed() {
 		if _, err := insertNamespace(ctx, tx, userID, ns); err != nil {
-			return err
-		}
-	}
-	for i, v := range DefaultViews {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO views (user_id, name, query, position, builtin) VALUES (?, ?, ?, ?, 1)",
-			userID, v.Name, v.Query, i); err != nil {
 			return err
 		}
 	}

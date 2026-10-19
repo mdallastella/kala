@@ -3,14 +3,13 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
-import { useTags, useViews } from '../api/hooks';
+import { useTags } from '../api/hooks';
 import { buildTree, tagColor, type TagNode } from '../lib/tags';
 import { useTagMap } from './TagChip';
 
@@ -66,7 +65,6 @@ function TreeItem({ node, depth, current }: { node: TagNode; depth: number; curr
 }
 
 export function Sidebar() {
-  const { data: views = [] } = useViews();
   const { data: tags = [] } = useTags();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,16 +88,6 @@ export function Sidebar() {
 
   return (
     <Box sx={{ overflowY: 'auto', height: '100%', pb: 2 }}>
-      <List dense subheader={<ListSubheader>Views</ListSubheader>}>
-        {views.map((v) => (
-          <ListItemButton key={v.id} dense selected={current === v.query} onClick={() => navigate(`/?q=${encodeURIComponent(v.query)}&view=${v.id}`)}>
-            <ListItemIcon>
-              <FilterListIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary={v.name} />
-          </ListItemButton>
-        ))}
-      </List>
       {pinned.length > 0 && (
         <List dense subheader={<ListSubheader>Pinned</ListSubheader>}>
           {pinned.map((t) => (

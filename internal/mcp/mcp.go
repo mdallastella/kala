@@ -275,10 +275,6 @@ func register(srv *mcp.Server, t *tools) {
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, any, error) {
 			return result(t.svc.Namespaces(ctx, t.uid))
 		})
-	mcp.AddTool(srv, &mcp.Tool{Name: "list_views", Description: "List saved views (named filters).", Annotations: ro("Views")},
-		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, any, error) {
-			return result(t.svc.Views(ctx, t.uid))
-		})
 	mcp.AddTool(srv, &mcp.Tool{Name: "today_briefing", Description: "Today's briefing (overdue, due today, reminders) and wrap-up (open due tasks, next working day, running timers).", Annotations: ro("Today")},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ noArgs) (*mcp.CallToolResult, any, error) {
 			b, err := t.svc.Briefing(ctx, t.uid)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"kala/internal/tags"
@@ -19,8 +20,10 @@ type Export struct {
 	WorkingHours []WorkingDay     `json:"working_hours"`
 	Namespaces   []tags.Namespace `json:"namespaces"`
 	Tags         []Tag            `json:"tags"`
-	Views        []View           `json:"views"`
-	Tasks        []ExportTask     `json:"tasks"`
+	// Views is ignored; it is accepted so exports made before saved views
+	// were removed can still be imported.
+	Views []json.RawMessage `json:"views,omitempty"`
+	Tasks []ExportTask      `json:"tasks"`
 }
 
 // ExportTask is a task with its time entries.
@@ -50,9 +53,6 @@ func (s *Service) Export(ctx context.Context, userID int64) (*Export, error) {
 		return nil, err
 	}
 	if ex.Tags, err = s.Tags(ctx, userID); err != nil {
-		return nil, err
-	}
-	if ex.Views, err = s.Views(ctx, userID); err != nil {
 		return nil, err
 	}
 	tasks, err := scanTasks(ctx, s.db, "SELECT "+taskColumns+" FROM tasks t WHERE t.user_id = ? ORDER BY t.id", userID)
@@ -97,11 +97,10 @@ type ImportResult struct {
 	Tasks      int `json:"tasks"`
 	Entries    int `json:"entries"`
 	Namespaces int `json:"namespaces"`
-	Views      int `json:"views"`
 }
 
 // Import adds the content of an export to a user's data. Existing
-// namespaces and views with the same name are kept; tasks are always added.
+// namespaces with the same name are kept; tasks are always added.
 // Imported tasks keep their tags as-is (no namespace defaults are applied).
 func (s *Service) Import(ctx context.Context, userID int64, ex *Export) (*ImportResult, error) {
 	if ex.Version != ExportVersion {
@@ -140,16 +139,6 @@ func (s *Service) Import(ctx context.Context, userID int64, ex *Export) (*Import
 			if _, err := tx.ExecContext(ctx, "UPDATE tags SET color = COALESCE(?, color), pinned = ?, position = ? WHERE id = ?",
 				t.Color, t.Pinned, t.Position, id); err != nil {
 				return err
-			}
-		}
-		for _, v := range ex.Views {
-			r, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO views (user_id, name, query, position, builtin) VALUES (?, ?, ?, ?, ?)`,
-				userID, v.Name, v.Query, v.Position, v.Builtin)
-			if err != nil {
-				return err
-			}
-			if n, _ := r.RowsAffected(); n > 0 {
-				res.Views++
 			}
 		}
 		for _, t := range ex.Tasks {
@@ -193,6 +182,6 @@ func (s *Service) Import(ctx context.Context, userID int64, ex *Export) (*Import
 	if err != nil {
 		return nil, err
 	}
-	s.publish(userID, "tasks", "tags", "timers", "views", "namespaces")
+	s.publish(userID, "tasks", "tags", "timers", "namespaces")
 	return res, nil
 }

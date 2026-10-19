@@ -10,7 +10,6 @@ import type {
   Task,
   TimeEntry,
   User,
-  View,
   WorkingDay,
 } from './types';
 
@@ -19,7 +18,6 @@ const kindKeys: Record<string, string[][]> = {
   tasks: [['tasks'], ['task'], ['trash'], ['digest']],
   tags: [['tags']],
   timers: [['timers'], ['entries'], ['report'], ['tasks'], ['task'], ['digest']],
-  views: [['views']],
   namespaces: [['namespaces']],
   me: [['me'], ['workingHours']],
   tokens: [['tokens']],
@@ -31,11 +29,10 @@ export function invalidateKinds(qc: QueryClient, kinds: string[]) {
 
 export const useMe = () => useQuery({ queryKey: ['me'], queryFn: () => get<User>('/me') });
 
-export const useTasks = (q: string, enabled = true) =>
+export const useTasks = (q: string) =>
   useQuery({
     queryKey: ['tasks', q],
     queryFn: () => get<Task[]>(`/tasks?q=${encodeURIComponent(q)}`),
-    enabled,
     placeholderData: (prev) => prev,
   });
 
@@ -44,7 +41,6 @@ export const useTask = (id: number | null) =>
 
 export const useTrash = () => useQuery({ queryKey: ['trash'], queryFn: () => get<Task[]>('/trash') });
 export const useTags = () => useQuery({ queryKey: ['tags'], queryFn: () => get<Tag[]>('/tags') });
-export const useViews = () => useQuery({ queryKey: ['views'], queryFn: () => get<View[]>('/views') });
 export const useNamespaces = () => useQuery({ queryKey: ['namespaces'], queryFn: () => get<Namespace[]>('/namespaces') });
 export const useActiveTimers = () => useQuery({ queryKey: ['timers'], queryFn: () => get<TimeEntry[]>('/timers/active') });
 export const useWorkingHours = () =>
@@ -124,11 +120,8 @@ export function useActions() {
       (t: { name: string; color?: string | null; pinned?: boolean; position?: number }) => put<Tag>('/tags', t),
       'tags',
     ),
-    renameTag: m((r: { from: string; to: string; confirm: boolean }) => post<RenamePreview>('/tags/rename', r), 'tags', 'tasks', 'views'),
+    renameTag: m((r: { from: string; to: string; confirm: boolean }) => post<RenamePreview>('/tags/rename', r), 'tags', 'tasks'),
     deleteTag: m((id: number) => del(`/tags/${id}`), 'tags', 'tasks'),
-    createView: m((v: { name: string; query: string }) => post<View>('/views', v), 'views'),
-    updateView: m(({ id, ...v }: { id: number; name?: string; query?: string; position?: number }) => patch<View>(`/views/${id}`, v), 'views'),
-    deleteView: m((id: number) => del(`/views/${id}`), 'views'),
     saveNamespace: m(
       (n: Omit<Namespace, 'id'> & { id?: number }) =>
         n.id ? put<Namespace>(`/namespaces/${n.id}`, { ...n, id: undefined }) : post<Namespace>('/namespaces', n),

@@ -14,11 +14,11 @@ import { namespaceValues, statusOf } from '../lib/tags';
 
 export function TasksPage() {
   const [params, setParams] = useSearchParams();
-  const { q, view, ready } = useCurrentQuery();
+  const { q } = useCurrentQuery();
   const ui = useUi();
   const taskId = Number(params.get('task')) || null;
 
-  const { data: tasks = [], error, isPending } = useTasks(q, ready);
+  const { data: tasks = [], error, isPending } = useTasks(q);
   const { data: nss } = useNamespaces();
   const actions = useActions();
   const now = useNow();
@@ -169,7 +169,6 @@ export function TasksPage() {
   ];
   useHotkeys(bindings);
 
-  const title = view?.name ?? 'Filter';
   const selectedCount = selection.size;
   const rows = useMemo(() => tasks, [tasks]);
 
@@ -178,7 +177,7 @@ export function TasksPage() {
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'baseline', gap: 1.5, borderBottom: 1, borderColor: 'divider' }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {title}
+            Tasks
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {tasks.length} task{tasks.length === 1 ? '' : 's'}

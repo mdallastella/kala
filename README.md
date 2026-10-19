@@ -63,10 +63,9 @@ Press `?` in the app for the full, context-aware list.
 
 | | |
 |---|---|
-| `Ctrl/⌘ K` | command palette (actions, views, tags, task search) |
+| `Ctrl/⌘ K` | command palette (actions, tags, task search) |
 | `q` / `Q` | quick add / start a timer on a new task |
-| `/` | edit the filter · `Ctrl/⌘ S` save it as a view |
-| `g t` `g u` `g o` `g i` `g a` | Today, Upcoming, Overdue, Inbox, All open |
+| `/` | edit the filter |
 | `g p` `g m` `g x` `g ,` | jump to project, Time, Trash, Settings |
 | `j` `k` `Enter` `Esc` | move, open details, close |
 | `x` `w` `1`–`3` `0` | close/reopen, waiting, priority, clear priority |
@@ -110,7 +109,7 @@ claude mcp add --transport http kala https://kala.example.com/mcp \
 Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `add_tags`, `remove_tags`, `close_task`,
 `reopen_task`, `delete_task` (to trash), `restore_task`, `start_timer`, `start_timer_new_task`, `stop_timer`,
 `list_active_timers`, `list_time_entries`, `delete_time_entry`, `time_report`, `list_tags`, `rename_tag`,
-`list_namespaces`, `list_views`, `today_briefing`. Tokens also work as bearer tokens on the REST API.
+`list_namespaces`, `today_briefing`. Tokens also work as bearer tokens on the REST API.
 
 ## REST API
 

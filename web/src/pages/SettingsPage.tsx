@@ -28,7 +28,7 @@ import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ApiError, errorMessage, get, post } from '../api/client';
-import { useActions, useMe, useNamespaces, useTags, useTokens, useViews, useWorkingHours } from '../api/hooks';
+import { useActions, useMe, useNamespaces, useTags, useTokens, useWorkingHours } from '../api/hooks';
 import type { Namespace, NamespaceValue, RenamePreview, Tag, WorkingDay } from '../api/types';
 import { TagChip } from '../components/TagChip';
 import { useUi } from '../components/ui';
@@ -61,7 +61,6 @@ export function SettingsPage() {
         <WorkingHours />
         <Namespaces />
         <TagsSection />
-        <Views />
         <Tokens />
         <Data />
       </Stack>
@@ -391,33 +390,6 @@ function RenameDialog({ tag, onClose }: { tag: Tag; onClose: () => void }) {
   );
 }
 
-function Views() {
-  const { data: views = [] } = useViews();
-  const { updateView, deleteView } = useActions();
-  const ui = useUi();
-  return (
-    <Section title="Views" hint="Saved filters shown in the sidebar. Save the current filter with Ctrl/⌘+S.">
-      {views.map((v, i) => (
-        <Stack key={v.id} direction="row" spacing={1} sx={{ alignItems: 'center', py: 0.5 }}>
-          <TextField defaultValue={v.name} sx={{ width: 160 }} onBlur={(e) => e.target.value !== v.name && updateView.mutate({ id: v.id, name: e.target.value }, { onError: (err) => ui.notify(errorMessage(err)) })} />
-          <TextField
-            defaultValue={v.query}
-            sx={{ flex: 1 }}
-            slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
-            onBlur={(e) => e.target.value !== v.query && updateView.mutate({ id: v.id, query: e.target.value }, { onError: (err) => ui.notify(errorMessage(err)) })}
-          />
-          <IconButton size="small" disabled={i === 0} onClick={() => { updateView.mutate({ id: v.id, position: views[i - 1].position - 1 }); }} aria-label="Move up">
-            <ArrowUpwardIcon fontSize="small" />
-          </IconButton>
-          <IconButton size="small" onClick={() => window.confirm(`Delete view “${v.name}”?`) && deleteView.mutate(v.id)} aria-label="Delete view">
-            <DeleteOutlinedIcon fontSize="small" />
-          </IconButton>
-        </Stack>
-      ))}
-    </Section>
-  );
-}
-
 function Tokens() {
   const { data: tokens = [] } = useTokens();
   const { createToken, revokeToken } = useActions();
@@ -499,7 +471,7 @@ function Data() {
     }
   };
   return (
-    <Section title="Data" hint="Export everything (tasks, trash, tags, namespaces, views, time entries) as JSON. Importing adds to your existing data.">
+    <Section title="Data" hint="Export everything (tasks, trash, tags, namespaces, time entries) as JSON. Importing adds to your existing data.">
       <Stack direction="row" spacing={1}>
         <Button variant="outlined" onClick={() => void exportData()}>
           Export JSON

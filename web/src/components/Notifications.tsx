@@ -61,7 +61,7 @@ export function Notifications({ onConnected }: { onConnected: (ok: boolean) => v
         () => {
           onConnected(true);
           // Catch up on anything missed while disconnected.
-          invalidateKinds(qc, ['tasks', 'tags', 'timers', 'views', 'namespaces']);
+          invalidateKinds(qc, ['tasks', 'tags', 'timers', 'namespaces']);
         },
       ),
     [qc, onConnected],

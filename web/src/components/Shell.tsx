@@ -2,10 +2,6 @@ import {
   AppBar,
   Box,
   Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Drawer,
   IconButton,
   InputAdornment,
@@ -22,10 +18,9 @@ import KeyboardIcon from '@mui/icons-material/Keyboard';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router';
-import { errorMessage } from '../api/client';
-import { useActions, useTags, useViews } from '../api/hooks';
+import { useActions, useTags } from '../api/hooks';
 import type { Task } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { HelpDialog } from '../keys/HelpDialog';
@@ -54,9 +49,8 @@ export function Shell() {
   const { logout, user } = useAuth();
   const { mode, setMode, systemMode } = useColorScheme();
   const dark = (mode === 'system' ? systemMode : mode) === 'dark';
-  const { data: views = [] } = useViews();
   const { data: tags = [] } = useTags();
-  const { stopAll, createView } = useActions();
+  const { stopAll } = useActions();
 
   const [toast, setToast] = useState<Toast | null>(null);
   const [quick, setQuick] = useState<{ open: boolean; timer: boolean; prefill: string }>({ open: false, timer: false, prefill: '' });
@@ -64,7 +58,6 @@ export function Shell() {
   const [help, setHelp] = useState(false);
   const [tagPick, setTagPick] = useState<{ tasks: Task[]; mode: 'tags' | 'project' } | null>(null);
   const [datePick, setDatePick] = useState<{ tasks: Task[]; kind: 'due' | 'remind' } | null>(null);
-  const [saveView, setSaveView] = useState(false);
   const { q: currentQuery } = useCurrentQuery();
   // Draft filter text while the user edits it; null shows the current query.
   const [draft, setDraft] = useState<string | null>(null);
@@ -89,10 +82,6 @@ export function Shell() {
     [notify, currentQuery],
   );
 
-  const goView = (name: string) => {
-    const v = views.find((x) => x.name.toLowerCase() === name.toLowerCase());
-    if (v) navigate(`/?q=${encodeURIComponent(v.query)}&view=${v.id}`);
-  };
   const toggleTheme = () => setMode(dark ? 'light' : 'dark');
   const stopAllTimers = () => stopAll.mutate(undefined, { onSuccess: (r) => notify(`Stopped ${r.stopped} timer(s)`) });
 
@@ -102,12 +91,6 @@ export function Shell() {
     { keys: 'Q', description: 'Start timer on a new task', group: 'General', run: () => ui.quickAdd({ timer: true }) },
     { keys: '/', description: 'Filter tasks', group: 'General', run: () => filterRef.current?.focus() },
     { keys: '?', description: 'Keyboard shortcuts', group: 'General', run: () => setHelp(true) },
-    { keys: 'mod+s', description: 'Save filter as view', group: 'General', allowInInput: true, run: () => setSaveView(true) },
-    { keys: 'g t', description: 'Go to Today', group: 'Navigation', run: () => goView('Today') },
-    { keys: 'g u', description: 'Go to Upcoming', group: 'Navigation', run: () => goView('Upcoming') },
-    { keys: 'g o', description: 'Go to Overdue', group: 'Navigation', run: () => goView('Overdue') },
-    { keys: 'g i', description: 'Go to Inbox', group: 'Navigation', run: () => goView('Inbox') },
-    { keys: 'g a', description: 'Go to All open', group: 'Navigation', run: () => goView('All open') },
     { keys: 'g p', description: 'Jump to project…', group: 'Navigation', run: () => ui.palette('project:') },
     { keys: 'g m', description: 'Go to Time', group: 'Navigation', run: () => navigate('/time') },
     { keys: 'g x', description: 'Go to Trash', group: 'Navigation', run: () => navigate('/trash') },
@@ -120,7 +103,6 @@ export function Shell() {
       { id: 'quick', label: 'Add task', group: 'Actions', keys: 'q', run: () => ui.quickAdd() },
       { id: 'quick-timer', label: 'Start timer on a new task', group: 'Actions', keys: 'Q', run: () => ui.quickAdd({ timer: true }) },
       { id: 'stop-all', label: 'Stop all timers', group: 'Actions', run: stopAllTimers },
-      { id: 'save-view', label: 'Save current filter as view', group: 'Actions', keys: 'mod+s', run: () => setSaveView(true) },
       { id: 'theme', label: dark ? 'Switch to light theme' : 'Switch to dark theme', group: 'Actions', run: toggleTheme },
       { id: 'help', label: 'Keyboard shortcuts', group: 'Actions', keys: '?', run: () => setHelp(true) },
       { id: 'logout', label: 'Sign out', group: 'Actions', run: () => void logout() },
@@ -128,13 +110,11 @@ export function Shell() {
       { id: 'trash', label: 'Trash', group: 'Go to', keys: 'g x', run: () => navigate('/trash') },
       { id: 'settings', label: 'Settings', group: 'Go to', keys: 'g ,', run: () => navigate('/settings') },
     ];
-    for (const v of views)
-      cmds.push({ id: `view-${v.id}`, label: v.name, hint: v.query, group: 'Views', run: () => navigate(`/?q=${encodeURIComponent(v.query)}&view=${v.id}`) });
     for (const t of tags)
       cmds.push({ id: `tag-${t.id}`, label: t.name, hint: `${t.open} open`, group: 'Tags', run: () => navigate(`/?q=${encodeURIComponent(tagQuery(t.name))}`) });
     return cmds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [views, tags, dark, ui]);
+  }, [tags, dark, ui]);
 
   const applyFilter = () => {
     navigate(`/?q=${encodeURIComponent(filterText.trim())}`);
@@ -226,18 +206,6 @@ export function Shell() {
       <HelpDialog open={help} onClose={() => setHelp(false)} />
       {tagPick && <TagPicker tasks={tagPick.tasks} mode={tagPick.mode} onClose={() => setTagPick(null)} onError={notify} />}
       {datePick && <DatePrompt tasks={datePick.tasks} kind={datePick.kind} onClose={() => setDatePick(null)} onError={notify} />}
-      <SaveViewDialog
-        key={String(saveView)}
-        open={saveView}
-        query={currentQuery}
-        onClose={() => setSaveView(false)}
-        onSave={(name) =>
-          createView.mutate(
-            { name, query: currentQuery },
-            { onSuccess: (v) => { notify(`Saved view “${v.name}”`); setSaveView(false); }, onError: (e) => notify(errorMessage(e)) },
-          )
-        }
-      />
       <Notifications onConnected={onConnected} />
       <Snackbar
         key={toast?.key}
@@ -254,32 +222,5 @@ export function Shell() {
         }
       />
     </UiContext.Provider>
-  );
-}
-
-function SaveViewDialog({ open, query, onClose, onSave }: { open: boolean; query: string; onClose: () => void; onSave: (name: string) => void }): ReactNode {
-  const [name, setName] = useState('');
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Save view</DialogTitle>
-      <DialogContent>
-        <TextField
-          autoFocus
-          fullWidth
-          label="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && name.trim() && onSave(name.trim())}
-          helperText={query || '(empty filter)'}
-          sx={{ mt: 1 }}
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={!name.trim()} onClick={() => onSave(name.trim())}>
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 }

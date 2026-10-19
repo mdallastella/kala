@@ -1,19 +1,16 @@
 import { useLocation, useSearchParams } from 'react-router';
-import { useViews } from '../api/hooks';
-import type { View } from '../api/types';
+
+/** Filter shown when the task page is opened without ?q=…. */
+const DEFAULT_QUERY = 'is:open';
 
 /**
- * The task filter shown by the current URL: ?q=…, or the first view when the
+ * The task filter shown by the current URL: ?q=…, or DEFAULT_QUERY when the
  * task page is opened without one. Empty on other pages.
  */
-export function useCurrentQuery(): { q: string; view: View | undefined; explicit: boolean; ready: boolean } {
+export function useCurrentQuery(): { q: string; explicit: boolean } {
   const [params] = useSearchParams();
   const { pathname } = useLocation();
-  const { data: views } = useViews();
   const explicit = params.get('q');
-  const viewId = Number(params.get('view')) || null;
-  if (pathname !== '/') return { q: '', view: undefined, explicit: false, ready: true };
-  const q = explicit ?? views?.[0]?.query ?? 'is:open';
-  const view = views?.find((v) => (viewId ? v.id === viewId : v.query === q));
-  return { q, view, explicit: explicit != null, ready: explicit != null || views != null };
+  if (pathname !== '/') return { q: '', explicit: false };
+  return { q: explicit ?? DEFAULT_QUERY, explicit: explicit != null };
 }

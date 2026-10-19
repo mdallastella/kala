@@ -60,11 +60,6 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.Handle("PUT "+p+"namespaces/{id}", s.authed(s.updateNamespace))
 	mux.Handle("DELETE "+p+"namespaces/{id}", s.authed(s.deleteNamespace))
 
-	mux.Handle("GET "+p+"views", s.authed(s.listViews))
-	mux.Handle("POST "+p+"views", s.authed(s.createView))
-	mux.Handle("PATCH "+p+"views/{id}", s.authed(s.patchView))
-	mux.Handle("DELETE "+p+"views/{id}", s.authed(s.deleteView))
-
 	mux.Handle("POST "+p+"reminders/{id}/ack", s.authed(s.ackReminder))
 	mux.Handle("GET "+p+"digest/briefing", s.authed(s.briefing))
 	mux.Handle("GET "+p+"digest/wrapup", s.authed(s.wrapup))
@@ -528,7 +523,7 @@ func (s *Server) timeReport(w http.ResponseWriter, r *http.Request) error {
 	return writeJSON(w, http.StatusOK, rep)
 }
 
-// --- tags, namespaces, views ---
+// --- tags, namespaces ---
 
 func (s *Server) listTags(w http.ResponseWriter, r *http.Request) error {
 	list, err := s.svc.Tags(r.Context(), uid(r))
@@ -615,53 +610,6 @@ func (s *Server) deleteNamespace(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if err := s.svc.DeleteNamespace(r.Context(), uid(r), id); err != nil {
-		return err
-	}
-	return writeJSON(w, http.StatusNoContent, nil)
-}
-
-func (s *Server) listViews(w http.ResponseWriter, r *http.Request) error {
-	list, err := s.svc.Views(r.Context(), uid(r))
-	if err != nil {
-		return err
-	}
-	return writeJSON(w, http.StatusOK, list)
-}
-
-func (s *Server) createView(w http.ResponseWriter, r *http.Request) error {
-	var in service.ViewInput
-	if err := decode(w, r, &in, 0); err != nil {
-		return err
-	}
-	v, err := s.svc.CreateView(r.Context(), uid(r), in)
-	if err != nil {
-		return err
-	}
-	return writeJSON(w, http.StatusCreated, v)
-}
-
-func (s *Server) patchView(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
-	if err != nil {
-		return err
-	}
-	var in service.ViewInput
-	if err := decode(w, r, &in, 0); err != nil {
-		return err
-	}
-	v, err := s.svc.UpdateView(r.Context(), uid(r), id, in)
-	if err != nil {
-		return err
-	}
-	return writeJSON(w, http.StatusOK, v)
-}
-
-func (s *Server) deleteView(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
-	if err != nil {
-		return err
-	}
-	if err := s.svc.DeleteView(r.Context(), uid(r), id); err != nil {
 		return err
 	}
 	return writeJSON(w, http.StatusNoContent, nil)
