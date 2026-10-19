@@ -10,7 +10,19 @@ linters:
     - noctx
     - revive
     - unconvert
+  settings:
+    errcheck:
+      # Closing read-only handles has no actionable error.
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+  exclusions:
+    paths:
+      - web/node_modules
 
 formatters:
   enable:
     - gofmt
+  exclusions:
+    paths:
+      - web/node_modules
