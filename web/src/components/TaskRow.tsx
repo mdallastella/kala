@@ -20,9 +20,10 @@ interface Props {
   now: number;
   onClick: (e: React.MouseEvent) => void;
   onToggle: () => void;
+  onDragStart?: (e: React.DragEvent) => void;
 }
 
-export const TaskRow = memo(function TaskRow({ task, focused, selected, open, now, onClick, onToggle }: Props) {
+export const TaskRow = memo(function TaskRow({ task, focused, selected, open, now, onClick, onToggle, onDragStart }: Props) {
   const closed = task.closed_at != null;
   const prio = task.priority;
   const status = statusOf(task.tags);
@@ -33,6 +34,8 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
       className={focused ? 'kala-focused' : undefined}
       selected={selected || open}
       onClick={onClick}
+      draggable={onDragStart != null}
+      onDragStart={onDragStart}
       sx={{ py: 0.5, pl: 1, gap: 1, borderBottom: 1, borderColor: 'divider', alignItems: 'center', minHeight: 40 }}
     >
       <Checkbox

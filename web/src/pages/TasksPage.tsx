@@ -10,6 +10,7 @@ import { TaskRow } from '../components/TaskRow';
 import { useNow } from '../components/TimerStrip';
 import { useUi } from '../components/ui';
 import { useHotkeys, type Binding } from '../keys/hotkeys';
+import { dragTasks } from '../lib/dnd';
 import { namespaceValues, statusOf } from '../lib/tags';
 
 export function TasksPage() {
@@ -218,6 +219,7 @@ export function TasksPage() {
                 } else openTask(t.id);
               }}
               onToggle={() => toggleClosed([t])}
+              onDragStart={(e) => dragTasks(e, selection.has(t.id) ? [...selection] : [t.id])}
             />
           ))}
           {!isPending && !error && tasks.length === 0 && (

@@ -9,13 +9,36 @@ import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
-import { useTags } from '../api/hooks';
+import { errorMessage } from '../api/client';
+import { useActions, useTags } from '../api/hooks';
+import { useTaskDrop } from '../lib/dnd';
+import type { Tag } from '../api/types';
 import { buildTree, tagColor, type TagNode } from '../lib/tags';
 import { useTagMap } from './TagChip';
+import { useUi } from './ui';
 
 export function tagQuery(name: string): string {
   return name.includes(':') ? `${name} is:open` : `#${name} is:open`;
 }
+
+/** Drop target that adds a tag to the dropped tasks. */
+function useTagDrop(tag: string, enabled = true) {
+  const { bulk } = useActions();
+  const ui = useUi();
+  return useTaskDrop(
+    (ids) =>
+      bulk.mutate(
+        { ids, op: 'add_tags', tags: [tag] },
+        {
+          onSuccess: () => ui.notify(`Tagged ${ids.length === 1 ? '1 task' : `${ids.length} tasks`} with ${tag}`),
+          onError: (e) => ui.notify(errorMessage(e)),
+        },
+      ),
+    enabled,
+  );
+}
+
+const dropSx = (over: boolean) => (over ? { outline: 2, outlineColor: 'primary.main', outlineOffset: -2 } : {});
 
 function Count({ n }: { n: number }) {
   return n > 0 ? (
@@ -31,9 +54,17 @@ function TreeItem({ node, depth, current }: { node: TagNode; depth: number; curr
   const map = useTagMap();
   const q = tagQuery(node.name);
   const hasKids = node.children.length > 0;
+  // A bare namespace (status, client…) is not a tag you can apply.
+  const drop = useTagDrop(node.name, node.name.includes(':') || !hasKids);
   return (
     <>
-      <ListItemButton dense selected={current === q} sx={{ pl: 1 + depth * 1.5, py: 0.25 }} onClick={() => navigate(`/?q=${encodeURIComponent(q)}`)}>
+      <ListItemButton
+        dense
+        selected={current === q}
+        sx={{ pl: 1 + depth * 1.5, py: 0.25, ...dropSx(drop.over) }}
+        onClick={() => navigate(`/?q=${encodeURIComponent(q)}`)}
+        {...drop.props}
+      >
         <Box sx={{ width: 24, display: 'flex' }}>
           {hasKids && (
             <IconButton
@@ -64,6 +95,21 @@ function TreeItem({ node, depth, current }: { node: TagNode; depth: number; curr
   );
 }
 
+function PinnedItem({ tag, current }: { tag: Tag; current: string }) {
+  const navigate = useNavigate();
+  const drop = useTagDrop(tag.name);
+  const q = tagQuery(tag.name);
+  return (
+    <ListItemButton dense selected={current === q} sx={dropSx(drop.over)} onClick={() => navigate(`/?q=${encodeURIComponent(q)}`)} {...drop.props}>
+      <ListItemIcon>
+        <PushPinOutlinedIcon fontSize="small" />
+      </ListItemIcon>
+      <ListItemText primary={tag.name} slotProps={{ primary: { noWrap: true } }} />
+      <Count n={tag.open} />
+    </ListItemButton>
+  );
+}
+
 export function Sidebar() {
   const { data: tags = [] } = useTags();
   const navigate = useNavigate();
@@ -91,13 +137,7 @@ export function Sidebar() {
       {pinned.length > 0 && (
         <List dense subheader={<ListSubheader>Pinned</ListSubheader>}>
           {pinned.map((t) => (
-            <ListItemButton key={t.id} dense selected={current === tagQuery(t.name)} onClick={() => navigate(`/?q=${encodeURIComponent(tagQuery(t.name))}`)}>
-              <ListItemIcon>
-                <PushPinOutlinedIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary={t.name} slotProps={{ primary: { noWrap: true } }} />
-              <Count n={t.open} />
-            </ListItemButton>
+            <PinnedItem key={t.id} tag={t} current={current} />
           ))}
         </List>
       )}
