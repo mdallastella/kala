@@ -27,6 +27,7 @@ import { useActions, useEntries, useNamespaces, useReport } from '../api/hooks';
 import type { Task, TimeEntry } from '../api/types';
 import { TagChip } from '../components/TagChip';
 import { useNow } from '../components/TimerStrip';
+import { WeekTimeline } from '../components/WeekTimeline';
 import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
 import { addDays, dueLabel, duration, fromLocalInput, isoDate, startOfWeek, timeLabel, toLocalInput } from '../lib/format';
@@ -109,6 +110,8 @@ export function TimePage() {
           Add entry (a)
         </Button>
       </Box>
+
+      <WeekTimeline entries={entries} week={week} now={now} group={group} onSelect={setEditing} />
 
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="overline" color="text.secondary">

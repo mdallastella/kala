@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
 import { clock, dueLabel, duration, isoDate, monthGrid } from './format';
 import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
+import { hourRange, segments } from './timeline';
 
 const tag = (name: string, open = 1, color: string | null = null): Tag => ({ id: 0, name, color, pinned: false, position: 0, open, total: open });
 
@@ -62,5 +63,27 @@ describe('monthGrid', () => {
     const days = monthGrid(new Date(2027, 1, 10)); // February 2027
     expect(days.length).toBe(28);
     expect(isoDate(days[0])).toBe('2027-02-01');
+  });
+});
+
+describe('timeline', () => {
+  const week = new Date(2026, 9, 19); // Monday
+  const at = (day: number, h: number, m = 0) => new Date(2026, 9, 19 + day, h, m).toISOString();
+  const entry = (id: number, from: string, to: string | null) => ({ id, task_id: 1, task_title: 'T', task_tags: [], started_at: from, stopped_at: to, note: '', seconds: 0 });
+
+  it('splits entries at midnight and ends running ones now', () => {
+    const now = new Date(2026, 9, 21, 10, 30).getTime();
+    const segs = segments([entry(1, at(0, 23), at(1, 1)), entry(2, at(2, 9), null)], week, now);
+    expect(segs.map((s) => [s.entry.id, s.day, s.start, s.end])).toEqual([
+      [1, 0, 1380, 1440],
+      [1, 1, 0, 60],
+      [2, 2, 540, 630],
+    ]);
+  });
+
+  it('covers segments and working hours in whole hours', () => {
+    const segs = segments([entry(1, at(0, 7, 45), at(0, 9))], week, 0);
+    expect(hourRange(segs, [{ weekday: 1, start_min: 540, end_min: 1050 }])).toEqual([7, 18]);
+    expect(hourRange([], [])).toEqual([8, 18]);
   });
 });
