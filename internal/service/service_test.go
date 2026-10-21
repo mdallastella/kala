@@ -232,8 +232,19 @@ func TestFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sorted[0].Title != "web work" {
-		t.Errorf("priority sort first = %q", sorted[0].Title)
+	// "api work" has no priority tag but is due today, so it ranks as high.
+	var order []string
+	for _, task := range sorted {
+		order = append(order, task.Title+"="+task.Priority)
+		if want := !slices.Contains(task.Tags, "priority:"+task.Priority); task.PriorityDerived != want {
+			t.Errorf("%s: derived = %v", task.Title, task.PriorityDerived)
+		}
+	}
+	if want := []string{"web work=high", "api work=high", "other=medium", "loose idea=low"}; !slices.Equal(order, want) {
+		t.Errorf("priority sort = %v, want %v", order, want)
+	}
+	if closed, _ := s.Task(ctx, uid, done.ID); closed.Priority != "" {
+		t.Errorf("closed task priority = %q", closed.Priority)
 	}
 	if _, err := s.Tasks(ctx, uid, service.ListOptions{Query: "due:whenever"}); !service.IsCode(err, service.CodeInvalid) {
 		t.Errorf("bad filter: want invalid, got %v", err)

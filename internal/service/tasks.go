@@ -32,6 +32,10 @@ type Task struct {
 	RunningSince *time.Time `json:"running_since"`
 	// TrackedSeconds is the total of the task's stopped time entries.
 	TrackedSeconds int64 `json:"tracked_seconds"`
+	// Priority is the task's priority value; PriorityDerived reports that it
+	// comes from the due date because the task has no priority tag.
+	Priority        string `json:"priority,omitempty"`
+	PriorityDerived bool   `json:"priority_derived,omitempty"`
 }
 
 const maxTitle = 500
@@ -220,6 +224,46 @@ func scanTasks(ctx context.Context, q querier, query string, args ...any) ([]Tas
 	return out, trows.Err()
 }
 
+// fillPriority sets each task's effective priority: its priority tag or, for
+// an open task without one, the value implied by its due date.
+func (s *Service) fillPriority(ctx context.Context, q querier, userID int64, ts []Task) error {
+	if len(ts) == 0 {
+		return nil
+	}
+	rules, err := s.rules(ctx, q, userID)
+	if err != nil {
+		return err
+	}
+	ns := rules[filter.PriorityNS]
+	if ns == nil || len(ns.Values) == 0 {
+		return nil
+	}
+	cal, err := s.calendar(ctx, q, userID)
+	if err != nil {
+		return err
+	}
+	today := dates.On(s.now(), cal.Loc)
+	for i := range ts {
+		t := &ts[i]
+		for _, tag := range t.Tags {
+			if n, v := tags.Split(tag); n == filter.PriorityNS && v != "" {
+				t.Priority = v
+				break
+			}
+		}
+		if t.Priority != "" || t.ClosedAt != nil {
+			continue
+		}
+		due := ""
+		if t.DueDate != nil {
+			due = *t.DueDate
+		}
+		t.Priority = ns.Values[min(filter.DerivedPriority(due, today), len(ns.Values)-1)].Value
+		t.PriorityDerived = true
+	}
+	return nil
+}
+
 func (s *Service) getTask(ctx context.Context, q querier, userID, id int64, withDeleted bool) (*Task, error) {
 	cond := " AND t.deleted_at IS NULL"
 	if withDeleted {
@@ -231,6 +275,9 @@ func (s *Service) getTask(ctx context.Context, q querier, userID, id int64, with
 	}
 	if len(list) == 0 {
 		return nil, ErrNotFound
+	}
+	if err := s.fillPriority(ctx, q, userID, list); err != nil {
+		return nil, err
 	}
 	return &list[0], nil
 }
@@ -272,8 +319,12 @@ func (s *Service) Tasks(ctx context.Context, userID int64, opts ListOptions) ([]
 	args := append([]any{userID}, fq.Args...)
 	args = append(args, fq.OrderArgs...)
 	args = append(args, opts.Limit)
-	return scanTasks(ctx, s.db, "SELECT "+taskColumns+" FROM tasks t WHERE t.user_id = ? AND "+deleted+
+	list, err := scanTasks(ctx, s.db, "SELECT "+taskColumns+" FROM tasks t WHERE t.user_id = ? AND "+deleted+
 		" AND ("+fq.Where+") ORDER BY "+order+" LIMIT ?", args...)
+	if err != nil {
+		return nil, err
+	}
+	return list, s.fillPriority(ctx, s.db, userID, list)
 }
 
 // TaskInput creates a task. When Quick is set it is parsed with the

@@ -108,7 +108,7 @@ func Compile(q string, env Env) (*Query, error) {
 		conds = append(conds, cond)
 		args = append(args, a...)
 	}
-	order, oargs, err := orderBy(sort)
+	order, oargs, err := orderBy(sort, env)
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +309,33 @@ const nsPosition = `(SELECT MIN(nv.position) FROM task_tags tt
 	JOIN namespace_values nv ON nv.namespace_id = n.id AND g.name = n.name || ':' || nv.value
 	WHERE tt.task_id = t.id)`
 
+// PriorityNS is the namespace whose order a task without a tag in it takes
+// from its due date.
+const PriorityNS = "priority"
+
+// PriorityHorizon is how many days ahead a due date implies the second
+// priority value.
+const PriorityHorizon = 3
+
+// DerivedPriority returns the position of the priority value implied by a due
+// date (YYYY-MM-DD, empty for none): overdue or today is the first value,
+// within PriorityHorizon days the second, otherwise the third.
+func DerivedPriority(due string, today dates.Date) int {
+	switch {
+	case due == "":
+		return 2
+	case due <= today.String():
+		return 0
+	case due <= today.AddDays(PriorityHorizon).String():
+		return 1
+	}
+	return 2
+}
+
+// derivedPriority mirrors DerivedPriority in SQL; closed tasks have none.
+const derivedPriority = `CASE WHEN t.closed_at IS NOT NULL THEN NULL WHEN t.due_date IS NULL THEN 2
+	WHEN t.due_date <= ? THEN 0 WHEN t.due_date <= ? THEN 1 ELSE 2 END`
+
 var columns = map[string]string{
 	"due":     "t.due_date",
 	"created": "t.created_at",
@@ -318,7 +345,7 @@ var columns = map[string]string{
 	"remind":  "t.remind_at",
 }
 
-func orderBy(spec string) (string, []any, error) {
+func orderBy(spec string, env Env) (string, []any, error) {
 	var (
 		parts []string
 		args  []any
@@ -338,8 +365,14 @@ func orderBy(spec string) (string, []any, error) {
 			if _, err := tags.Normalize(key); err != nil || strings.Contains(key, ":") {
 				return "", nil, fmt.Errorf("cannot sort by %q", key)
 			}
+			// expr appears twice below, so its arguments are bound twice.
 			expr = nsPosition
 			args = append(args, key, key)
+			if key == PriorityNS {
+				expr = "COALESCE(" + nsPosition + ", " + derivedPriority + ")"
+				today, horizon := env.today().String(), env.today().AddDays(PriorityHorizon).String()
+				args = append(args[:len(args)-2], key, today, horizon, key, today, horizon)
+			}
 		}
 		parts = append(parts, expr+" IS NULL, "+expr+" "+dir)
 	}

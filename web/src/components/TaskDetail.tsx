@@ -131,8 +131,8 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
         >
           {priorities.map((p) => (
             <ToggleButton key={p} value={p} sx={{ px: 1, py: 0.25 }} aria-label={p}>
-              <Tooltip title={p}>
-                <FlagIcon sx={{ fontSize: 16, color: PRIORITY_COLORS[p] }} />
+              <Tooltip title={task.priority_derived && task.priority === p ? `${p} · from due date` : p}>
+                <FlagIcon sx={{ fontSize: 16, color: PRIORITY_COLORS[p], opacity: !prio && task.priority_derived && task.priority !== p ? 0.35 : 1 }} />
               </Tooltip>
             </ToggleButton>
           ))}

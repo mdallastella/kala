@@ -9,7 +9,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { memo } from 'react';
 import type { Task } from '../api/types';
 import { clock, dateTimeLabel, dueLabel, duration, isOverdue } from '../lib/format';
-import { chipTags, priorityOf, PRIORITY_COLORS, statusOf } from '../lib/tags';
+import { chipTags, PRIORITY_COLORS, statusOf } from '../lib/tags';
 import { TagChip } from './TagChip';
 
 interface Props {
@@ -24,7 +24,7 @@ interface Props {
 
 export const TaskRow = memo(function TaskRow({ task, focused, selected, open, now, onClick, onToggle }: Props) {
   const closed = task.closed_at != null;
-  const prio = priorityOf(task.tags);
+  const prio = task.priority;
   const status = statusOf(task.tags);
   const running = task.running_since ? (now - new Date(task.running_since).getTime()) / 1000 : 0;
   return (
@@ -46,7 +46,13 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
         sx={{ p: 0.5 }}
         slotProps={{ input: { 'aria-label': closed ? 'Reopen' : 'Close' } }}
       />
-      <Box sx={{ width: 16, display: 'flex' }}>{prio && <FlagIcon sx={{ fontSize: 16, color: PRIORITY_COLORS[prio] ?? 'text.secondary' }} />}</Box>
+      <Box sx={{ width: 16, display: 'flex' }}>
+        {prio && (
+          <Tooltip title={task.priority_derived ? `${prio} · from due date` : prio}>
+            <FlagIcon sx={{ fontSize: 16, color: PRIORITY_COLORS[prio] ?? 'text.secondary', opacity: task.priority_derived ? 0.35 : 1 }} />
+          </Tooltip>
+        )}
+      </Box>
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography
           variant="body2"
