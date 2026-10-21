@@ -10,6 +10,22 @@ export function addDays(d: Date, n: number): Date {
   return c;
 }
 
+/** Local midnight of the Monday on or before d. */
+export function startOfWeek(d: Date): Date {
+  const c = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  c.setDate(c.getDate() - ((c.getDay() + 6) % 7));
+  return c;
+}
+
+/** The days shown for month's month: whole Monday–Sunday weeks covering it. */
+export function monthGrid(month: Date): Date[] {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const days: Date[] = [];
+  for (let d = startOfWeek(first); d <= last || days.length % 7 !== 0; d = addDays(d, 1)) days.push(d);
+  return days;
+}
+
 export function parseDate(s: string): Date {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d);

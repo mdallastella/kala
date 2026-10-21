@@ -29,14 +29,8 @@ import { TagChip } from '../components/TagChip';
 import { useNow } from '../components/TimerStrip';
 import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
-import { addDays, dueLabel, duration, fromLocalInput, isoDate, timeLabel, toLocalInput } from '../lib/format';
+import { addDays, dueLabel, duration, fromLocalInput, isoDate, startOfWeek, timeLabel, toLocalInput } from '../lib/format';
 import { chipTags } from '../lib/tags';
-
-function startOfWeek(d: Date): Date {
-  const c = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  c.setDate(c.getDate() - ((c.getDay() + 6) % 7)); // Monday
-  return c;
-}
 
 export function TimePage() {
   const [week, setWeek] = useState(() => startOfWeek(new Date()));

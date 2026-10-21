@@ -1,5 +1,6 @@
 import { Box, Collapse, IconButton, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -177,6 +178,7 @@ export function Sidebar() {
         ))}
       </List>
       <List dense>
+        {nav('/calendar', 'Calendar', <CalendarMonthOutlinedIcon fontSize="small" />, 'g c')}
         {nav('/time', 'Time', <AccessTimeIcon fontSize="small" />, 'g m')}
         {nav('/trash', 'Trash', <DeleteOutlinedIcon fontSize="small" />, 'g x')}
         {nav('/settings', 'Settings', <SettingsOutlinedIcon fontSize="small" />, 'g ,')}

@@ -7,6 +7,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { ApiError } from './api/client';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { Shell } from './components/Shell';
+import { CalendarPage } from './pages/CalendarPage';
 import { LoginPage } from './pages/LoginPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TasksPage } from './pages/TasksPage';
@@ -37,6 +38,7 @@ function App() {
     <Routes>
       <Route element={<Shell />}>
         <Route index element={<TasksPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="time" element={<TimePage />} />
         <Route path="trash" element={<TrashPage />} />
         <Route path="settings" element={<SettingsPage />} />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
-import { clock, dueLabel, duration, isoDate } from './format';
+import { clock, dueLabel, duration, isoDate, monthGrid } from './format';
 import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
 
 const tag = (name: string, open = 1, color: string | null = null): Tag => ({ id: 0, name, color, pinned: false, position: 0, open, total: open });
@@ -47,5 +47,20 @@ describe('format', () => {
     expect(duration(125)).toBe('2m');
     expect(duration(3900)).toBe('1h 05m');
     expect(clock(3725)).toBe('1:02:05');
+  });
+});
+
+describe('monthGrid', () => {
+  it('covers the month with whole Monday-first weeks', () => {
+    const days = monthGrid(new Date(2026, 9, 21)); // October 2026 starts on a Thursday
+    expect(days.length).toBe(35);
+    expect(isoDate(days[0])).toBe('2026-09-28');
+    expect(isoDate(days[days.length - 1])).toBe('2026-11-01');
+  });
+
+  it('needs no padding when the month starts on Monday and ends on Sunday', () => {
+    const days = monthGrid(new Date(2027, 1, 10)); // February 2027
+    expect(days.length).toBe(28);
+    expect(isoDate(days[0])).toBe('2027-02-01');
   });
 });
