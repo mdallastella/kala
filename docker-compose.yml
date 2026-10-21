@@ -1,0 +1,20 @@
+services:
+  kala:
+    image: ghcr.io/mdallastella/kala:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - kala-data:/data
+    environment:
+      # Optional; if unset, a random secret is generated and stored in the DB.
+      # KALA_JWT_SECRET: change-me-to-at-least-32-characters
+      KALA_ALLOW_SIGNUP: "false"
+      # Set to "true" behind a reverse proxy so the login rate limit sees client IPs.
+      KALA_TRUST_PROXY: "false"
+      # Set to "true" only when serving over plain HTTP from a host other than localhost.
+      KALA_DEV: "false"
+
+volumes:
+  kala-data:
