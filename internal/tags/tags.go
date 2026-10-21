@@ -245,7 +245,9 @@ func Rename(tag, from, to string) (string, bool) {
 // Seed returns the namespaces created for every new user.
 func Seed() []Namespace {
 	return []Namespace{
-		{Name: "status", Exclusive: true, Default: "open", Values: []Value{{Value: "open"}, {Value: "waiting"}, {Value: "closed", Terminal: true}}},
+		{Name: "status", Exclusive: true, Default: "open", Values: []Value{
+			{Value: "open"}, {Value: "pending"}, {Value: "delegated"}, {Value: "closed", Terminal: true}, {Value: "cancelled", Terminal: true},
+		}},
 		{Name: "priority", Exclusive: true, Values: []Value{{Value: "high"}, {Value: "medium"}, {Value: "low"}}},
 		{Name: "project"},
 	}

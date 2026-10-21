@@ -298,7 +298,7 @@ func TestRenameTag(t *testing.T) {
 
 	// Renaming into an exclusive namespace that would clash is refused.
 	mustCreate(t, s, uid, service.TaskInput{Title: "three", Tags: []string{"wip"}})
-	if _, err := s.RenameTag(ctx, uid, service.RenameInput{From: "wip", To: "status:waiting", Confirm: true}); !service.IsCode(err, service.CodeConflict) {
+	if _, err := s.RenameTag(ctx, uid, service.RenameInput{From: "wip", To: "status:pending", Confirm: true}); !service.IsCode(err, service.CodeConflict) {
 		t.Fatalf("want conflict, got %v", err)
 	}
 }

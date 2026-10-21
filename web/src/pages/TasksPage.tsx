@@ -89,11 +89,11 @@ export function TasksPage() {
       actions.bulk.mutate({ ids: ts.map((t) => t.id), op: 'remove_tags', tags: priorities.map((p) => `priority:${p}`) }, { onError: fail });
     } else if (priorities[n - 1]) addTags([`priority:${priorities[n - 1]}`]);
   };
-  const toggleWaiting = () => {
+  const toggleStatus = (status: string) => {
     const ts = targets();
     if (!ts.length) return;
-    if (ts.every((t) => statusOf(t.tags) === 'waiting')) bulkOrSingle(ts, 'reopen');
-    else addTags(['status:waiting']);
+    if (ts.every((t) => statusOf(t.tags) === status)) bulkOrSingle(ts, 'reopen');
+    else addTags([`status:${status}`]);
   };
   const toggleTimer = () => {
     for (const t of targets()) (t.running_since ? actions.stop : actions.start).mutate(t.id, { onError: fail });
@@ -150,7 +150,9 @@ export function TasksPage() {
     { keys: 'e', description: 'Edit title', group: g, run: () => { if (focused) { openTask(focused.id); setFocusTitle((n) => n + 1); } } },
     { keys: 'escape', description: 'Close details / clear selection', group: g, run: () => (taskId ? openTask(null) : setSelection(new Set())) },
     { keys: 'x', description: 'Close / reopen', group: g, run: () => toggleClosed() },
-    { keys: 'w', description: 'Toggle waiting', group: g, run: toggleWaiting },
+    { keys: 'w', description: 'Toggle pending', group: g, run: () => toggleStatus('pending') },
+    { keys: 'D', description: 'Toggle delegated', group: g, run: () => toggleStatus('delegated') },
+    { keys: 'c', description: 'Cancel / reopen', group: g, run: () => toggleStatus('cancelled') },
     { keys: '1', description: 'Priority high', group: g, run: () => setPriority(1) },
     { keys: '2', description: 'Priority medium', group: g, run: () => setPriority(2) },
     { keys: '3', description: 'Priority low', group: g, run: () => setPriority(3) },

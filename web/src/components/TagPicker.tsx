@@ -93,7 +93,7 @@ export function TagPicker({ tasks, mode, onClose, onError }: Props) {
             <TextField
               {...params}
               autoFocus
-              placeholder={mode === 'project' ? 'kala:api' : 'client:acme, status:waiting…'}
+              placeholder={mode === 'project' ? 'kala:api' : 'client:acme, status:pending…'}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || input === '')) {
                   e.preventDefault();

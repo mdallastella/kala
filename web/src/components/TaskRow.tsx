@@ -1,6 +1,8 @@
 import { Box, Checkbox, ListItemButton, Tooltip, Typography } from '@mui/material';
 import AlarmIcon from '@mui/icons-material/Alarm';
+import BlockIcon from '@mui/icons-material/Block';
 import FlagIcon from '@mui/icons-material/Flag';
+import ForwardIcon from '@mui/icons-material/Forward';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import NotesIcon from '@mui/icons-material/Notes';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -54,9 +56,19 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
           {task.title}
         </Typography>
         {task.notes && <NotesIcon sx={{ fontSize: 14, color: 'text.disabled' }} />}
-        {status === 'waiting' && (
-          <Tooltip title="Waiting">
+        {status === 'pending' && (
+          <Tooltip title="Pending">
             <HourglassEmptyIcon sx={{ fontSize: 14, color: 'warning.main' }} />
+          </Tooltip>
+        )}
+        {status === 'delegated' && (
+          <Tooltip title="Delegated">
+            <ForwardIcon sx={{ fontSize: 14, color: 'info.main' }} />
+          </Tooltip>
+        )}
+        {status === 'cancelled' && (
+          <Tooltip title="Cancelled">
+            <BlockIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
           </Tooltip>
         )}
         <Box sx={{ display: 'flex', gap: 0.5, overflow: 'hidden', flexShrink: 2 }}>
