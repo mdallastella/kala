@@ -55,6 +55,15 @@ export function dateTimeLabel(iso: string): string {
   return `${day} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+/** Short relative time of a past instant: "just now", "5m ago", "3h ago", "2d ago". */
+export function ago(iso: string, now = Date.now()): string {
+  const min = Math.floor((now - new Date(iso).getTime()) / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  if (min < 24 * 60) return `${Math.floor(min / 60)}h ago`;
+  return `${Math.floor(min / (24 * 60))}d ago`;
+}
+
 export function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }

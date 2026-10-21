@@ -22,6 +22,7 @@ import { useHotkeys } from '../keys/hotkeys';
 import { clock, dueLabel, isoDate, addDays } from '../lib/format';
 import { TagChip } from './TagChip';
 import { chipTags } from '../lib/tags';
+import { tasksPath } from '../lib/useCurrentQuery';
 
 type Digest = 'briefing' | 'wrapup';
 
@@ -119,7 +120,7 @@ function ReminderSnackbar({ task, onDone }: { task: Task | null; onDone: () => v
         sx={{ alignItems: 'center' }}
         action={
           <>
-            <Button color="inherit" size="small" onClick={() => { ack(); if (task) navigate(`/?task=${task.id}`); }}>
+            <Button color="inherit" size="small" onClick={() => { ack(); if (task) navigate(tasksPath(undefined, task.id)); }}>
               Open
             </Button>
             <Button color="inherit" size="small" onClick={() => ack(10)}>
@@ -202,7 +203,7 @@ function DigestDialog({ kind, onClose }: { kind: Digest; onClose: () => void }) 
     { keys: 't', description: 'Postpone to tomorrow', group: 'Digest', allowInDialog: true, run: () => act({ due_date: tomorrow }) },
     { keys: 'n', description: 'Postpone to next working day', group: 'Digest', allowInDialog: true, run: () => w && act({ due_date: w.next_work_date }) },
     { keys: 'S', description: 'Stop all timers', group: 'Digest', allowInDialog: true, run: () => stopAll.mutate() },
-    { keys: 'enter', description: 'Open task', group: 'Digest', allowInDialog: true, run: () => { if (current) { close(); navigate(`/?task=${current.id}`); } } },
+    { keys: 'enter', description: 'Open task', group: 'Digest', allowInDialog: true, run: () => { if (current) { close(); navigate(tasksPath(undefined, current.id)); } } },
   ]);
 
   return (

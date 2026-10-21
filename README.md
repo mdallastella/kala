@@ -68,7 +68,7 @@ Press `?` in the app for the full, context-aware list.
 | `Ctrl/⌘ K` | command palette (actions, tags, task search) |
 | `q` / `Q` | quick add / start a timer on a new task |
 | `/` | edit the filter |
-| `g p` `g c` `g m` `g x` `g ,` | jump to project, Calendar, Time, Trash, Settings |
+| `g h` `g t` `g p` `g c` `g m` `g x` `g ,` | go to Home, Tasks, project, Calendar, Time, Trash, Settings |
 | `j` `k` `Enter` `Esc` | move, open details, close |
 | `x` `w` `D` `c` | close/reopen, pending, delegated, cancel |
 | `1`–`3` `0` | priority, clear priority (back to the due-date priority) |
@@ -96,7 +96,7 @@ project:                any project                   -project:       no project
 is:open|closed|running|reminder
 due:today|tomorrow|overdue|week|none|any   due:<=fri   due:2026-11-01
 remind:today|due        closed:today|week|>=2026-10-01
-sort:priority,due,-created   (a namespace name sorts by its value order)
+sort:priority,due,-created   (a namespace name sorts by its value order; also tracked, activity)
 ```
 
 ## MCP

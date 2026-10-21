@@ -29,10 +29,10 @@ export function invalidateKinds(qc: QueryClient, kinds: string[]) {
 
 export const useMe = () => useQuery({ queryKey: ['me'], queryFn: () => get<User>('/me') });
 
-export const useTasks = (q: string) =>
+export const useTasks = (q: string, limit?: number) =>
   useQuery({
-    queryKey: ['tasks', q],
-    queryFn: () => get<Task[]>(`/tasks?q=${encodeURIComponent(q)}`),
+    queryKey: ['tasks', q, limit],
+    queryFn: () => get<Task[]>(`/tasks?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`),
     placeholderData: (prev) => prev,
   });
 

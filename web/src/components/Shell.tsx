@@ -26,7 +26,7 @@ import { useAuth } from '../auth/AuthContext';
 import { HelpDialog } from '../keys/HelpDialog';
 import { useHotkeys, type Binding } from '../keys/hotkeys';
 import { projectFromQuery } from '../lib/tags';
-import { useCurrentQuery } from '../lib/useCurrentQuery';
+import { tasksPath, useCurrentQuery } from '../lib/useCurrentQuery';
 import { CommandPalette, type Command } from './CommandPalette';
 import { DatePrompt } from './DatePrompt';
 import { Notifications } from './Notifications';
@@ -91,6 +91,8 @@ export function Shell() {
     { keys: 'Q', description: 'Start timer on a new task', group: 'General', run: () => ui.quickAdd({ timer: true }) },
     { keys: '/', description: 'Filter tasks', group: 'General', run: () => filterRef.current?.focus() },
     { keys: '?', description: 'Keyboard shortcuts', group: 'General', run: () => setHelp(true) },
+    { keys: 'g h', description: 'Go to Home', group: 'Navigation', run: () => navigate('/') },
+    { keys: 'g t', description: 'Go to Tasks', group: 'Navigation', run: () => navigate('/tasks') },
     { keys: 'g p', description: 'Jump to project…', group: 'Navigation', run: () => ui.palette('project:') },
     { keys: 'g c', description: 'Go to Calendar', group: 'Navigation', run: () => navigate('/calendar') },
     { keys: 'g m', description: 'Go to Time', group: 'Navigation', run: () => navigate('/time') },
@@ -107,19 +109,21 @@ export function Shell() {
       { id: 'theme', label: dark ? 'Switch to light theme' : 'Switch to dark theme', group: 'Actions', run: toggleTheme },
       { id: 'help', label: 'Keyboard shortcuts', group: 'Actions', keys: '?', run: () => setHelp(true) },
       { id: 'logout', label: 'Sign out', group: 'Actions', run: () => void logout() },
+      { id: 'home', label: 'Home', group: 'Go to', keys: 'g h', run: () => navigate('/') },
+      { id: 'tasks', label: 'Tasks', group: 'Go to', keys: 'g t', run: () => navigate('/tasks') },
       { id: 'calendar', label: 'Calendar', group: 'Go to', keys: 'g c', run: () => navigate('/calendar') },
       { id: 'time', label: 'Time tracking', group: 'Go to', keys: 'g m', run: () => navigate('/time') },
       { id: 'trash', label: 'Trash', group: 'Go to', keys: 'g x', run: () => navigate('/trash') },
       { id: 'settings', label: 'Settings', group: 'Go to', keys: 'g ,', run: () => navigate('/settings') },
     ];
     for (const t of tags)
-      cmds.push({ id: `tag-${t.id}`, label: t.name, hint: `${t.open} open`, group: 'Tags', run: () => navigate(`/?q=${encodeURIComponent(tagQuery(t.name))}`) });
+      cmds.push({ id: `tag-${t.id}`, label: t.name, hint: `${t.open} open`, group: 'Tags', run: () => navigate(tasksPath(tagQuery(t.name))) });
     return cmds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tags, dark, ui]);
 
   const applyFilter = () => {
-    navigate(`/?q=${encodeURIComponent(filterText.trim())}`);
+    navigate(tasksPath(filterText.trim()));
     setDraft(null);
     filterRef.current?.blur();
   };
@@ -201,7 +205,7 @@ export function Shell() {
         <CommandPalette
           prefill={palette.prefill}
           commands={commands}
-          onOpenTask={(t) => navigate(`/?q=${encodeURIComponent(currentQuery)}&task=${t.id}`)}
+          onOpenTask={(t) => navigate(tasksPath(currentQuery, t.id))}
           onClose={() => setPalette((s) => ({ ...s, open: false }))}
         />
       )}

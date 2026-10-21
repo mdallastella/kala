@@ -27,6 +27,7 @@ Minimalist task manager and time tracker, developed with Golang (backend) and Re
 
 ### Interface
 
+* Home dashboard: running timers, recently created or tracked tasks, and the latest open tasks
 * Dense, keyboard-driven list of open tasks
 * Task management via drag-and-drop (drop tasks on a project, tag or status in the sidebar to apply it)
 * Calendar view (month grid) for scheduling due dates by drag-and-drop

@@ -8,6 +8,7 @@ import { ApiError } from './api/client';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { Shell } from './components/Shell';
 import { CalendarPage } from './pages/CalendarPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TasksPage } from './pages/TasksPage';
@@ -37,7 +38,8 @@ function App() {
   return (
     <Routes>
       <Route element={<Shell />}>
-        <Route index element={<TasksPage />} />
+        <Route index element={<DashboardPage />} />
+        <Route path="tasks" element={<TasksPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="time" element={<TimePage />} />
         <Route path="trash" element={<TrashPage />} />

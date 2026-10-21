@@ -11,6 +11,7 @@ import { useHotkeys } from '../keys/hotkeys';
 import { dragTasks, useTaskDrop } from '../lib/dnd';
 import { addDays, isoDate, monthGrid } from '../lib/format';
 import { PRIORITY_COLORS } from '../lib/tags';
+import { tasksPath } from '../lib/useCurrentQuery';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -28,7 +29,7 @@ function CalendarTask({ task }: { task: Task }) {
     <Box
       draggable
       onDragStart={(e) => dragTasks(e, [task.id])}
-      onClick={() => navigate(`/?task=${task.id}`)}
+      onClick={() => navigate(tasksPath(undefined, task.id))}
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -143,7 +144,7 @@ export function CalendarPage() {
     { keys: 'right', description: 'Next day', group: g, run: () => move(1) },
     { keys: 'up', description: 'Previous week', group: g, run: () => move(-7) },
     { keys: 'down', description: 'Next week', group: g, run: () => move(7) },
-    { keys: 'enter', description: 'Show tasks due that day', group: g, run: () => navigate(`/?q=${encodeURIComponent(`${q} due:${focusDay}`)}`) },
+    { keys: 'enter', description: 'Show tasks due that day', group: g, run: () => navigate(tasksPath(`${q} due:${focusDay}`)) },
   ]);
 
   return (

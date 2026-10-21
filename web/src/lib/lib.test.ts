@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
-import { clock, dueLabel, duration, isoDate, monthGrid } from './format';
+import { ago, clock, dueLabel, duration, isoDate, monthGrid } from './format';
 import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
 import { hourRange, segments } from './timeline';
 
@@ -85,5 +85,15 @@ describe('timeline', () => {
     const segs = segments([entry(1, at(0, 7, 45), at(0, 9))], week, 0);
     expect(hourRange(segs, [{ weekday: 1, start_min: 540, end_min: 1050 }])).toEqual([7, 18]);
     expect(hourRange([], [])).toEqual([8, 18]);
+  });
+});
+
+describe('ago', () => {
+  it('rounds down to the largest unit', () => {
+    const now = new Date('2026-10-21T12:00:00Z').getTime();
+    expect(ago('2026-10-21T11:59:30Z', now)).toBe('just now');
+    expect(ago('2026-10-21T11:15:00Z', now)).toBe('45m ago');
+    expect(ago('2026-10-21T09:00:00Z', now)).toBe('3h ago');
+    expect(ago('2026-10-18T12:00:00Z', now)).toBe('3d ago');
   });
 });

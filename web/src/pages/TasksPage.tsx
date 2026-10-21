@@ -13,9 +13,16 @@ import { useHotkeys, type Binding } from '../keys/hotkeys';
 import { dragTasks } from '../lib/dnd';
 import { namespaceValues, statusOf } from '../lib/tags';
 
-export function TasksPage() {
+interface Props {
+  /** Fixed filter, used instead of the URL's (the home page embeds the list). */
+  query?: string;
+  title?: string;
+}
+
+export function TasksPage({ query, title = 'Tasks' }: Props) {
   const [params, setParams] = useSearchParams();
-  const { q } = useCurrentQuery();
+  const current = useCurrentQuery();
+  const q = query ?? current.q;
   const ui = useUi();
   const taskId = Number(params.get('task')) || null;
 
@@ -180,7 +187,7 @@ export function TasksPage() {
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'baseline', gap: 1.5, borderBottom: 1, borderColor: 'divider' }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Tasks
+            {title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {tasks.length} task{tasks.length === 1 ? '' : 's'}

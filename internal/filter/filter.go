@@ -11,7 +11,7 @@
 //	due:today|tomorrow|overdue|week|none|any, due:<=fri, due:2026-11-01
 //	remind:today|due|none|any
 //	closed:today|week, closed:>=2026-10-01
-//	sort:priority,due,-created   (namespace names sort by value order)
+//	sort:priority,due,-created   (namespace names sort by value order; also tracked, activity)
 //	word "quoted text"   matches title or notes
 //
 // The compiled condition refers to the tasks table as "t".
@@ -336,6 +336,9 @@ func DerivedPriority(due string, today dates.Date) int {
 const derivedPriority = `CASE WHEN t.closed_at IS NOT NULL THEN NULL WHEN t.due_date IS NULL THEN 2
 	WHEN t.due_date <= ? THEN 0 WHEN t.due_date <= ? THEN 1 ELSE 2 END`
 
+// lastTracked is the start of a task's most recent time entry.
+const lastTracked = `(SELECT MAX(e.started_at) FROM time_entries e WHERE e.task_id = t.id)`
+
 var columns = map[string]string{
 	"due":     "t.due_date",
 	"created": "t.created_at",
@@ -343,6 +346,9 @@ var columns = map[string]string{
 	"closed":  "t.closed_at",
 	"title":   "t.title COLLATE NOCASE",
 	"remind":  "t.remind_at",
+	"tracked": lastTracked,
+	// activity is the later of creation and the last time entry start.
+	"activity": "MAX(t.created_at, COALESCE(" + lastTracked + ", ''))",
 }
 
 func orderBy(spec string, env Env) (string, []any, error) {

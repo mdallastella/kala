@@ -32,6 +32,8 @@ type Task struct {
 	RunningSince *time.Time `json:"running_since"`
 	// TrackedSeconds is the total of the task's stopped time entries.
 	TrackedSeconds int64 `json:"tracked_seconds"`
+	// LastTrackedAt is the start of the task's most recent time entry.
+	LastTrackedAt *time.Time `json:"last_tracked_at"`
 	// Priority is the task's priority value; PriorityDerived reports that it
 	// comes from the due date because the task has no priority tag.
 	Priority        string `json:"priority,omitempty"`
@@ -167,7 +169,8 @@ func statusTag(rules tags.Rules, closed bool) (string, error) {
 const taskColumns = `t.id, t.title, t.notes, t.due_date, t.remind_at, t.reminded_at, t.closed_at, t.deleted_at, t.created_at, t.updated_at,
 	(SELECT e.started_at FROM time_entries e WHERE e.task_id = t.id AND e.stopped_at IS NULL),
 	(SELECT COALESCE(SUM(CAST(ROUND((julianday(e.stopped_at) - julianday(e.started_at)) * 86400) AS INTEGER)), 0)
-		FROM time_entries e WHERE e.task_id = t.id AND e.stopped_at IS NOT NULL)`
+		FROM time_entries e WHERE e.task_id = t.id AND e.stopped_at IS NOT NULL),
+	(SELECT MAX(e.started_at) FROM time_entries e WHERE e.task_id = t.id)`
 
 func scanTasks(ctx context.Context, q querier, query string, args ...any) ([]Task, error) {
 	rows, err := q.QueryContext(ctx, query, args...)
@@ -179,17 +182,17 @@ func scanTasks(ctx context.Context, q querier, query string, args ...any) ([]Tas
 	var ids []int64
 	for rows.Next() {
 		var (
-			t                                        Task
-			due, remind, reminded, closed, del, runs sql.NullString
-			created, updated                         string
+			t                                                 Task
+			due, remind, reminded, closed, del, runs, tracked sql.NullString
+			created, updated                                  string
 		)
 		if err := rows.Scan(&t.ID, &t.Title, &t.Notes, &due, &remind, &reminded, &closed, &del, &created, &updated,
-			&runs, &t.TrackedSeconds); err != nil {
+			&runs, &t.TrackedSeconds, &tracked); err != nil {
 			return nil, err
 		}
 		t.DueDate = nullString(due)
 		t.RemindAt, t.RemindedAt, t.ClosedAt, t.DeletedAt = nullTime(remind), nullTime(reminded), nullTime(closed), nullTime(del)
-		t.RunningSince = nullTime(runs)
+		t.RunningSince, t.LastTrackedAt = nullTime(runs), nullTime(tracked)
 		t.CreatedAt, t.UpdatedAt = parseTS(created), parseTS(updated)
 		t.Tags = []string{}
 		out = append(out, t)

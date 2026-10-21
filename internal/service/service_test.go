@@ -429,3 +429,27 @@ func TestDigests(t *testing.T) {
 		t.Fatal("snoozed reminder still due")
 	}
 }
+
+func TestActivitySort(t *testing.T) {
+	s, c := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	old := mustCreate(t, s, uid, service.TaskInput{Title: "old"})
+	c.advance(time.Hour)
+	mustCreate(t, s, uid, service.TaskInput{Title: "new"})
+	c.advance(time.Hour)
+	if _, err := s.StartTimer(ctx, uid, old.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.Tasks(ctx, uid, service.ListOptions{Query: "sort:-activity"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Title != "old" || got[1].Title != "new" {
+		t.Fatalf("activity order = %v", titles(got))
+	}
+	if got[0].LastTrackedAt == nil || !got[0].LastTrackedAt.Equal(c.now()) || got[1].LastTrackedAt != nil {
+		t.Errorf("last tracked = %v, %v", got[0].LastTrackedAt, got[1].LastTrackedAt)
+	}
+}

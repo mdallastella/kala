@@ -1,10 +1,12 @@
 import { Box, Collapse, IconButton, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
@@ -13,6 +15,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import { useActions, useTags } from '../api/hooks';
 import { useTaskDrop } from '../lib/dnd';
+import { tasksPath } from '../lib/useCurrentQuery';
 import type { Tag } from '../api/types';
 import { buildTree, tagColor, type TagNode } from '../lib/tags';
 import { useTagMap } from './TagChip';
@@ -63,7 +66,7 @@ function TreeItem({ node, depth, current }: { node: TagNode; depth: number; curr
         dense
         selected={current === q}
         sx={{ pl: 1 + depth * 1.5, py: 0.25, ...dropSx(drop.over) }}
-        onClick={() => navigate(`/?q=${encodeURIComponent(q)}`)}
+        onClick={() => navigate(tasksPath(q))}
         {...drop.props}
       >
         <Box sx={{ width: 24, display: 'flex' }}>
@@ -101,7 +104,7 @@ function PinnedItem({ tag, current }: { tag: Tag; current: string }) {
   const drop = useTagDrop(tag.name);
   const q = tagQuery(tag.name);
   return (
-    <ListItemButton dense selected={current === q} sx={dropSx(drop.over)} onClick={() => navigate(`/?q=${encodeURIComponent(q)}`)} {...drop.props}>
+    <ListItemButton dense selected={current === q} sx={dropSx(drop.over)} onClick={() => navigate(tasksPath(q))} {...drop.props}>
       <ListItemIcon>
         <PushPinOutlinedIcon fontSize="small" />
       </ListItemIcon>
@@ -116,7 +119,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
-  const current = location.pathname === '/' ? (params.get('q') ?? '') : '';
+  const current = location.pathname === '/tasks' ? (params.get('q') ?? '') : '';
   const tree = useMemo(() => buildTree(tags), [tags]);
   const projects = tree.find((n) => n.name === 'project');
   const others = tree.filter((n) => n.name !== 'project' && n.name !== 'status' && n.name !== 'priority');
@@ -124,7 +127,7 @@ export function Sidebar() {
   const pinned = tags.filter((t) => t.pinned);
 
   const nav = (path: string, label: string, icon: React.ReactNode, hint: string) => (
-    <ListItemButton dense selected={location.pathname === path} onClick={() => navigate(path)}>
+    <ListItemButton dense selected={location.pathname === path && !current} onClick={() => navigate(path)}>
       <ListItemIcon>{icon}</ListItemIcon>
       <ListItemText primary={label} />
       <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
@@ -135,6 +138,10 @@ export function Sidebar() {
 
   return (
     <Box sx={{ overflowY: 'auto', height: '100%', pb: 2 }}>
+      <List dense>
+        {nav('/', 'Home', <HomeOutlinedIcon fontSize="small" />, 'g h')}
+        {nav('/tasks', 'Tasks', <ChecklistIcon fontSize="small" />, 'g t')}
+      </List>
       {pinned.length > 0 && (
         <List dense subheader={<ListSubheader>Pinned</ListSubheader>}>
           {pinned.map((t) => (

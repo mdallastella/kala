@@ -25,6 +25,7 @@ export interface Task {
   updated_at: string;
   running_since: string | null;
   tracked_seconds: number;
+  last_tracked_at: string | null;
   /** Priority value; derived from the due date when there is no priority tag. */
   priority?: string;
   priority_derived?: boolean;
