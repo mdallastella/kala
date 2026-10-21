@@ -8,8 +8,10 @@ Go backend (single binary, SQLite) + React/Material UI frontend + MCP server.
   Filtering by a tag matches its whole subtree (`project:kala` includes `project:kala:api`).
 - **Namespaces** can be *exclusive* (one value per task: adding `status:closed` replaces `status:open`),
   have a *default* for new tasks, an *order* (used for sorting), and *terminal* values (the task is
-  closed while it carries one). New accounts get `status` (open*, waiting, closed†), `priority`
-  (high, medium, low) and `project`.
+  closed while it carries one). New accounts get `status` (open*, pending, delegated, closed†,
+  cancelled†), `priority` (high, medium, low) and `project`.
+- **Priority** comes from the `priority:` tag or, for open tasks without one, from the due date:
+  overdue or today → high, within 3 days → medium, later or none → low.
 - **Due dates** are calendar days. **Reminders** are exact times. Per-weekday **working hours** drive a
   morning briefing and an end-of-day wrap-up, which warns about running timers.
 - **Time tracking:** any number of timers can run at once (one per task). Closing a task stops its timer,
@@ -66,9 +68,10 @@ Press `?` in the app for the full, context-aware list.
 | `Ctrl/⌘ K` | command palette (actions, tags, task search) |
 | `q` / `Q` | quick add / start a timer on a new task |
 | `/` | edit the filter |
-| `g p` `g m` `g x` `g ,` | jump to project, Time, Trash, Settings |
+| `g p` `g c` `g m` `g x` `g ,` | jump to project, Calendar, Time, Trash, Settings |
 | `j` `k` `Enter` `Esc` | move, open details, close |
-| `x` `w` `1`–`3` `0` | close/reopen, waiting, priority, clear priority |
+| `x` `w` `D` `c` | close/reopen, pending, delegated, cancel |
+| `1`–`3` `0` | priority, clear priority (back to the due-date priority) |
 | `s` `d` `r` `t` `p` `e` `Del` | timer, due, reminder, tags, project, edit title, delete |
 | `Space` `V` `* a` `* n` | select, range select, all, none — actions then apply to the selection |
 | `b` | open a pending briefing / wrap-up |
