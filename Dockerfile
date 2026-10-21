@@ -13,9 +13,12 @@ RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /kala ./cmd/kala
+RUN mkdir /data
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=go /kala /kala
+# distroless has no shell to mkdir/chown, so /data comes from the build stage
+COPY --from=go --chown=65532:65532 /data /data
 ENV KALA_ADDR=:8080 KALA_DB_PATH=/data/kala.db
 VOLUME /data
 EXPOSE 8080
