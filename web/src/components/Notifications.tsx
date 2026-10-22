@@ -19,7 +19,7 @@ import { get, post, streamEvents } from '../api/client';
 import { invalidateKinds, useActions } from '../api/hooks';
 import type { Briefing, Task, Wrapup } from '../api/types';
 import { useHotkeys } from '../keys/hotkeys';
-import { clock, dueLabel, isoDate, addDays } from '../lib/format';
+import { clock, dueLabel, isoDate, addDays, timeLabel } from '../lib/format';
 import { TagChip } from './TagChip';
 import { chipTags } from '../lib/tags';
 import { tasksPath } from '../lib/useCurrentQuery';
@@ -223,7 +223,7 @@ function DigestDialog({ kind, onClose }: { kind: Digest; onClose: () => void }) 
                 </Typography>
                 {b.reminders.map((t) => (
                   <Typography key={t.id} variant="body2">
-                    {new Date(t.remind_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {t.title}
+                    {timeLabel(t.remind_at!)} · {t.title}
                   </Typography>
                 ))}
               </>

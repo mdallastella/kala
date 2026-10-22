@@ -32,7 +32,7 @@ import { useActions, useMe, useNamespaces, useTags, useTokens, useWorkingHours }
 import type { Namespace, NamespaceValue, RenamePreview, Tag, WorkingDay } from '../api/types';
 import { TagChip } from '../components/TagChip';
 import { useUi } from '../components/ui';
-import { clockToMinutes, minutesToClock } from '../lib/format';
+import { clockToMinutes, fullDateTime, minutesToClock } from '../lib/format';
 
 function Section({ title, children, hint }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -425,7 +425,7 @@ function Tokens() {
           >
             <ListItemText
               primary={`${t.name} · ${t.prefix}…`}
-              secondary={`Created ${new Date(t.created_at).toLocaleDateString()} · ${t.last_used_at ? `last used ${new Date(t.last_used_at).toLocaleString()}` : 'never used'}`}
+              secondary={`Created ${new Date(t.created_at).toLocaleDateString()} · ${t.last_used_at ? `last used ${fullDateTime(t.last_used_at)}` : 'never used'}`}
             />
           </ListItem>
         ))}

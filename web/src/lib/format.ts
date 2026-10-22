@@ -52,7 +52,7 @@ export function isOverdue(s: string | null, today = new Date()): boolean {
 export function dateTimeLabel(iso: string): string {
   const d = new Date(iso);
   const day = dueLabel(isoDate(d));
-  return `${day} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+  return `${day} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
 }
 
 /** Short relative time of a past instant: "just now", "5m ago", "3h ago", "2d ago". */
@@ -65,7 +65,7 @@ export function ago(iso: string, now = Date.now()): string {
 }
 
 export function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
 /** Formats seconds as 1h 05m / 12m / 45s. */
@@ -106,4 +106,9 @@ export function minutesToClock(min: number): string {
 export function clockToMinutes(v: string): number {
   const [h, m] = v.split(':').map(Number);
   return h * 60 + m;
+}
+
+/** Full local date and time, 24h. */
+export function fullDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' });
 }

@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { errorMessage } from '../api/client';
 import { useActions, useEntries, useNamespaces, useTask } from '../api/hooks';
-import { clock, dateTimeLabel, dueLabel, duration, isoDate, isOverdue, timeLabel } from '../lib/format';
+import { clock, dateTimeLabel, dueLabel, duration, fullDateTime, isoDate, isOverdue, timeLabel } from '../lib/format';
 import { namespaceValues, priorityOf, PRIORITY_COLORS, statusOf } from '../lib/tags';
 import { TagChip } from './TagChip';
 import { useNow } from './TimerStrip';
@@ -256,8 +256,8 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
       <Divider />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="caption" color="text.secondary">
-          Created {new Date(task.created_at).toLocaleString()}
-          {task.closed_at && ` · closed ${new Date(task.closed_at).toLocaleString()}`}
+          Created {fullDateTime(task.created_at)}
+          {task.closed_at && ` · closed ${fullDateTime(task.closed_at)}`}
         </Typography>
         <Button
           size="small"

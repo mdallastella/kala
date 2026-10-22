@@ -5,6 +5,7 @@ import { useActions, useTrash } from '../api/hooks';
 import { TagChip } from '../components/TagChip';
 import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
+import { fullDateTime } from '../lib/format';
 import { chipTags } from '../lib/tags';
 
 export function TrashPage() {
@@ -41,7 +42,7 @@ export function TrashPage() {
           <ListItemButton key={t.id} selected={i === focus} onClick={() => setFocus(i)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <ListItemText
               primary={t.title}
-              secondary={`Deleted ${new Date(t.deleted_at!).toLocaleString()}`}
+              secondary={`Deleted ${fullDateTime(t.deleted_at!)}`}
             />
             <Box sx={{ display: 'flex', gap: 0.5, mr: 2 }}>
               {chipTags(t.tags).map((x) => (

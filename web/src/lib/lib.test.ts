@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
-import { ago, clock, dueLabel, duration, isoDate, monthGrid } from './format';
+import { ago, clock, dueLabel, duration, fullDateTime, isoDate, monthGrid, timeLabel } from './format';
 import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
 import { hourRange, segments } from './timeline';
 
@@ -48,6 +48,11 @@ describe('format', () => {
     expect(duration(125)).toBe('2m');
     expect(duration(3900)).toBe('1h 05m');
     expect(clock(3725)).toBe('1:02:05');
+  });
+  it('formats times on a 24h clock', () => {
+    const iso = new Date(2026, 9, 21, 14, 5).toISOString();
+    expect(timeLabel(iso)).toBe('14:05');
+    expect(fullDateTime(iso)).toContain('14:05');
   });
 });
 

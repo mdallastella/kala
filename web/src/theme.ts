@@ -19,7 +19,7 @@ export const theme = createTheme({
   shape: { borderRadius: 8 },
   typography: {
     fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-    fontSize: 13,
+    fontSize: 14,
   },
   components: {
     MuiButtonBase: { defaultProps: { disableRipple: true } },
