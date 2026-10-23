@@ -53,7 +53,7 @@ function Count({ n }: { n: number }) {
 }
 
 function TreeItem({ node, depth, current }: { node: TagNode; depth: number; current: string }) {
-  const [open, setOpen] = useState(depth === 0);
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const map = useTagMap();
   const q = tagQuery(node.name);
@@ -141,6 +141,8 @@ export function Sidebar() {
       <List dense>
         {nav('/', 'Home', <HomeOutlinedIcon fontSize="small" />, 'g h')}
         {nav('/tasks', 'Tasks', <ChecklistIcon fontSize="small" />, 'g t')}
+        {nav('/calendar', 'Calendar', <CalendarMonthOutlinedIcon fontSize="small" />, 'g c')}
+        {nav('/time', 'Time', <AccessTimeIcon fontSize="small" />, 'g m')}
       </List>
       {pinned.length > 0 && (
         <List dense subheader={<ListSubheader>Pinned</ListSubheader>}>
@@ -185,8 +187,6 @@ export function Sidebar() {
         ))}
       </List>
       <List dense>
-        {nav('/calendar', 'Calendar', <CalendarMonthOutlinedIcon fontSize="small" />, 'g c')}
-        {nav('/time', 'Time', <AccessTimeIcon fontSize="small" />, 'g m')}
         {nav('/trash', 'Trash', <DeleteOutlinedIcon fontSize="small" />, 'g x')}
         {nav('/settings', 'Settings', <SettingsOutlinedIcon fontSize="small" />, 'g ,')}
       </List>
