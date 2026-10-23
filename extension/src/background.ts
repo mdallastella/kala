@@ -45,6 +45,11 @@ async function handle(msg: Request): Promise<unknown> {
       return callApi(msg.method, msg.path, msg.body);
     case 'options':
       return chrome.runtime.openOptionsPage();
+    case 'open-task': {
+      const s = await getSettings();
+      if (s) await chrome.tabs.create({ url: `${s.baseUrl}/tasks?task=${msg.id}` });
+      return;
+    }
     case 'cached-tags': {
       const { tags } = await chrome.storage.session.get('tags');
       return (tags ?? null) as CachedTags;

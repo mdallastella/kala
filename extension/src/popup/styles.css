@@ -96,6 +96,42 @@ body {
   border-radius: 4px;
 }
 
+.matches {
+  padding-bottom: 8px;
+  border-top: 1px solid var(--divider);
+}
+
+.item.task {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.key {
+  flex: none;
+  width: 1ch;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.section {
+  padding: 8px 16px 4px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
 .preview {
   display: flex;
   flex-wrap: wrap;

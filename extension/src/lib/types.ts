@@ -18,6 +18,14 @@ export interface Tag {
   open: number;
 }
 
+export interface TimeEntry {
+  id: number;
+  task_id: number;
+  task_title: string;
+  task_tags: string[];
+  started_at: string;
+}
+
 export interface QuickParse {
   title: string;
   tags: string[];

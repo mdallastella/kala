@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { TargetedEvent } from 'preact';
-import { errorMessage, post, send } from '../lib/api';
-import { dateTimeLabel, dueLabel } from '../lib/format';
-import { currentToken, tagColor } from '../lib/quickadd';
-import type { QuickParse, Tag, Task } from '../lib/types';
+import { errorMessage, get, post, send } from '../lib/api';
+import { dateTimeLabel, dueLabel, timeLabel } from '../lib/format';
+import { currentToken, searchQuery, tagColor } from '../lib/quickadd';
+import type { QuickParse, Tag, Task, TimeEntry } from '../lib/types';
 
 interface Props {
   tags: Tag[];
@@ -12,7 +12,15 @@ interface Props {
   onDone: (message: string) => void;
 }
 
-/** Port of web/src/components/QuickAdd.tsx: Enter adds, Shift+Enter also starts a timer. */
+/** Open tasks most recently created or timed. */
+const recentQuery = 'is:open sort:-activity';
+
+/**
+ * Port of web/src/components/QuickAdd.tsx: Enter adds, Shift+Enter also starts a timer.
+ * Running timers and the latest open tasks (or, once typing, those matching the title) are
+ * listed below; on a selected one Enter opens it in kala and Shift+Enter starts or stops its
+ * timer. Alt+n picks the nth task.
+ */
 export function QuickAdd({ tags, setupError, onDone }: Props) {
   const [text, setText] = useState('');
   // Parse result for a given text; stale results are ignored when rendering.
@@ -21,6 +29,11 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const [shift, setShift] = useState(false);
   const [sel, setSel] = useState(0);
+  // Search results for a query; pick is the selected match, -1 while adding a new task.
+  const [found, setFound] = useState<{ q: string; tasks: Task[] }>({ q: '', tasks: [] });
+  const [pick, setPick] = useState(-1);
+  const [recent, setRecent] = useState<Task[]>([]);
+  const [timers, setTimers] = useState<TimeEntry[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const colors = useMemo(() => new Map(tags.map((t) => [t.name, t.color])), [tags]);
 
@@ -36,6 +49,30 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   const empty = !text.trim();
   const preview = empty ? null : (parsed.preview ?? null);
   const error = setupError || submitError || (!empty && parsed.text === text ? (parsed.error ?? '') : '');
+
+  // Search by the parsed title so tag, due and remind tokens don't narrow the matches.
+  const query = !empty && !setupError && preview ? searchQuery(preview.title) : null;
+  useEffect(() => {
+    if (!query) return;
+    get<Task[]>(`/tasks?limit=6&q=${encodeURIComponent(query)}`)
+      .then((tasks) => setFound({ q: query, tasks }))
+      .catch(() => setFound({ q: query, tasks: [] }));
+  }, [query]);
+  useEffect(() => {
+    if (setupError) return;
+    get<Task[]>(`/tasks?limit=5&q=${encodeURIComponent(recentQuery)}`)
+      .then(setRecent)
+      .catch(() => setRecent([]));
+    get<TimeEntry[]>('/timers/active')
+      .then(setTimers)
+      .catch(() => setTimers([]));
+  }, [setupError]);
+  const running = useMemo(() => new Set(timers.map((e) => e.task_id)), [timers]);
+  // Previous matches stay up while the next search runs, to avoid flicker.
+  const matches = (empty ? recent : query ? found.tasks : []).filter((t) => !running.has(t.id));
+  // Selectable rows: running timers, then matches; pick indexes into this.
+  const rows: Task[] = [...timers.map((e) => ({ id: e.task_id, title: e.task_title, tags: e.task_tags })), ...matches];
+  useEffect(() => setPick(-1), [found]);
 
   const token = currentToken(text);
   const suggestions = useMemo(() => {
@@ -66,25 +103,79 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
     }
   };
 
+  const act = async (task: Task, timer: boolean) => {
+    if (busy) return;
+    if (!timer) {
+      void send({ type: 'open-task', id: task.id });
+      return;
+    }
+    const stop = running.has(task.id);
+    setBusy(true);
+    try {
+      const t = await post<Task>(`/tasks/${task.id}/timer/${stop ? 'stop' : 'start'}`);
+      onDone(`${stop ? 'Stopped' : 'Started'} timer on “${t.title}”`);
+    } catch (e) {
+      setSubmitError(errorMessage(e));
+      setBusy(false);
+    }
+  };
+
   const onKeyDown = (e: KeyboardEvent) => {
     setShift(e.shiftKey);
+    // e.code, not e.key: Shift turns the digit into a symbol on most layouts.
+    const n = e.altKey && /^Digit[1-9]$/.test(e.code) ? Number(e.code.slice(5)) : 0;
+    if (n) {
+      e.preventDefault();
+      const task = matches[n - 1];
+      if (task) void act(task, e.shiftKey);
+      return;
+    }
     if (suggestions.length > 0 && (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
       if (e.key === 'Tab') complete(suggestions[sel] ?? suggestions[0]);
       else setSel((s) => (s + (e.key === 'ArrowDown' ? 1 : suggestions.length - 1)) % suggestions.length);
       return;
     }
+    if (rows.length > 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      // Cycles through the rows and back to adding a new task (-1).
+      const n = rows.length + 1;
+      setPick((p) => ((p + 1 + (e.key === 'ArrowDown' ? 1 : n - 1)) % n) - 1);
+      return;
+    }
     if (e.key === 'Tab') e.preventDefault(); // keep focus in the input
     if (e.key === 'Enter') {
       e.preventDefault();
-      void submit(e.shiftKey);
+      const task = rows[pick];
+      void (task ? act(task, e.shiftKey) : submit(e.shiftKey));
     }
+  };
+
+  const row = (t: Task, i: number, key: string, extra?: string) => {
+    const hint = [extra, ...t.tags.filter((x) => x.startsWith('project:')).map((x) => `@${x.slice(8)}`)].filter(Boolean).join(' · ');
+    return (
+      <li
+        key={t.id}
+        class={i === pick ? 'item task selected' : 'item task'}
+        onMouseMove={() => setPick(i)}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          void act(t, e.shiftKey);
+        }}
+      >
+        <span class="key">{key}</span>
+        <span class="body">
+          <span class="label">{t.title}</span>
+          {hint && <span class="label hint">{hint}</span>}
+        </span>
+      </li>
+    );
   };
 
   return (
     <div class="quick">
       <div class="head">
-        {shift && !setupError && <span class="badge">timer</span>}
+        {shift && !setupError && <span class="badge">{rows[pick] && running.has(rows[pick].id) ? 'stop' : 'timer'}</span>}
         <input
           ref={inputRef}
           autoFocus
@@ -96,6 +187,7 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
           onInput={(e: TargetedEvent<HTMLInputElement>) => {
             setText(e.currentTarget.value);
             setSubmitError('');
+            setPick(-1);
           }}
           onKeyDown={onKeyDown}
           onKeyUp={(e) => setShift(e.shiftKey)}
@@ -128,6 +220,10 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
       <div class="preview">
         {error ? (
           <span class="error">{setupError ? `${setupError} · Enter opens settings` : error}</span>
+        ) : rows[pick] ? (
+          <span class="caption">
+            Enter opens “{rows[pick].title}” in kala · Shift+Enter {running.has(rows[pick].id) ? 'stops' : 'starts'} its timer · ↑ back to adding
+          </span>
         ) : preview ? (
           <>
             <strong>{preview.title}</strong>
@@ -146,6 +242,18 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
           <span class="caption">#tag · @project · !high/!1 · due:fri · remind:thu 9:00 · Tab completes · Enter adds · Shift+Enter adds and starts a timer</span>
         )}
       </div>
+      {timers.length > 0 && (
+        <ul class="list matches" aria-label="Running timers">
+          <li class="section">Running timers · Shift+Enter stops</li>
+          {timers.map((e, i) => row(rows[i], i, '▶', `since ${timeLabel(e.started_at)}`))}
+        </ul>
+      )}
+      {matches.length > 0 && (
+        <ul class="list matches" aria-label="Existing tasks">
+          <li class="section">{empty ? 'Recent tasks' : 'Existing tasks'} · ↓ or Alt+number to pick</li>
+          {matches.map((t, i) => row(t, timers.length + i, String(i + 1)))}
+        </ul>
+      )}
     </div>
   );
 }

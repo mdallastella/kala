@@ -31,6 +31,13 @@ export function dueLabel(s: string, today = new Date()): string {
   return d.toLocaleDateString(undefined, opts);
 }
 
+/** Time of day on a 24h clock, plus the day when it isn't today. */
+export function timeLabel(iso: string, today = new Date()): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return isoDate(d) === isoDate(today) ? time : `${dueLabel(isoDate(d), today)} ${time}`;
+}
+
 export function dateTimeLabel(iso: string): string {
   const d = new Date(iso);
   const day = dueLabel(isoDate(d));

@@ -4,6 +4,7 @@ import type { ApiErrorBody, Tag } from './types';
 export type Request =
   | { type: 'api'; method: string; path: string; body?: unknown }
   | { type: 'options' }
+  | { type: 'open-task'; id: number }
   | { type: 'cached-tags' };
 
 export interface ApiResponse {

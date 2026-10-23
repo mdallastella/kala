@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dueLabel, isoDate } from './format';
-import { currentToken, tagColor } from './quickadd';
+import { currentToken, searchQuery, tagColor } from './quickadd';
 import { normalizeBaseUrl, originPattern } from './settings';
 
 describe('quickadd', () => {
@@ -9,6 +9,10 @@ describe('quickadd', () => {
     expect(currentToken('@Kala')).toEqual({ prefix: '@', partial: 'kala' });
     expect(currentToken('buy milk')).toBeNull();
     expect(currentToken('mail a#b')).toBeNull();
+  });
+  it('builds the search query from the parsed title', () => {
+    expect(searchQuery(' write "report" ')).toBe('"write report" is:open');
+    expect(searchQuery('a')).toBeNull();
   });
   it('colours tags from the nearest ancestor', () => {
     const colors = new Map([['project', '#123456']]);
