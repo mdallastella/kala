@@ -25,6 +25,7 @@ import { useMemo, useState } from 'react';
 import { errorMessage, get } from '../api/client';
 import { useActions, useEntries, useNamespaces, useReport } from '../api/hooks';
 import type { Task, TimeEntry } from '../api/types';
+import { DateTimeField } from '../components/DateTimeField';
 import { TagChip } from '../components/TagChip';
 import { useNow } from '../components/TimerStrip';
 import { WeekTimeline } from '../components/WeekTimeline';
@@ -225,21 +226,14 @@ function EntryDialog({ entry, onClose }: { entry: TimeEntry | null; onClose: () 
               renderInput={(params) => <TextField {...params} autoFocus label="Task" />}
             />
           )}
-          <TextField type="datetime-local" label="Start" value={start} onChange={(e) => setStart(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField
-            type="datetime-local"
-            label="End"
-            value={stop}
-            onChange={(e) => setStop(e.target.value)}
-            helperText={entry && !entry.stopped_at ? 'Leave empty to keep it running' : undefined}
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
+          <DateTimeField label="Start" value={start} onChange={setStart} />
+          <DateTimeField label="End" value={stop} onChange={setStop} helperText={entry && !entry.stopped_at ? 'Leave empty to keep it running' : undefined} />
           <TextField label="Note" value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={save} disabled={!entry && (!task || !stop)}>
+        <Button variant="contained" onClick={save} disabled={!start || (!entry && (!task || !stop))}>
           Save
         </Button>
       </DialogActions>

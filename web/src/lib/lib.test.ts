@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
-import { ago, clock, dueLabel, duration, fullDateTime, isoDate, monthGrid, timeLabel } from './format';
+import { ago, clock, dueLabel, duration, fullDateTime, isoDate, monthGrid, parseClock, timeLabel } from './format';
 import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
 import { hourRange, segments } from './timeline';
 
@@ -53,6 +53,17 @@ describe('format', () => {
     const iso = new Date(2026, 9, 21, 14, 5).toISOString();
     expect(timeLabel(iso)).toBe('14:05');
     expect(fullDateTime(iso)).toContain('14:05');
+  });
+});
+
+describe('parseClock', () => {
+  it('reads 24h clocks', () => {
+    expect(parseClock('09:30')).toBe(570);
+    expect(parseClock('9:05')).toBe(545);
+    expect(parseClock('23:59')).toBe(1439);
+    expect(parseClock('24:00')).toBeNull();
+    expect(parseClock('9:5')).toBeNull();
+    expect(parseClock('9:00 PM')).toBeNull();
   });
 });
 

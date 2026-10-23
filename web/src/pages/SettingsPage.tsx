@@ -32,7 +32,8 @@ import { useActions, useMe, useNamespaces, useTags, useTokens, useWorkingHours }
 import type { Namespace, NamespaceValue, RenamePreview, Tag, WorkingDay } from '../api/types';
 import { TagChip } from '../components/TagChip';
 import { useUi } from '../components/ui';
-import { clockToMinutes, fullDateTime, minutesToClock } from '../lib/format';
+import { ClockField } from '../components/DateTimeField';
+import { fullDateTime } from '../lib/format';
 
 function Section({ title, children, hint }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -129,8 +130,8 @@ function WorkingHoursForm({ initial }: { initial: WorkingDay[] }) {
             />
             {d && (
               <>
-                <TextField type="time" label="Start" value={minutesToClock(d.start_min)} onChange={(e) => e.target.value && set(wd, { ...d, start_min: clockToMinutes(e.target.value) })} />
-                <TextField type="time" label="End" value={minutesToClock(d.end_min)} onChange={(e) => e.target.value && set(wd, { ...d, end_min: clockToMinutes(e.target.value) })} />
+                <ClockField label="Start" minutes={d.start_min} onChange={(m) => m !== null && set(wd, { ...d, start_min: m })} />
+                <ClockField label="End" minutes={d.end_min} onChange={(m) => m !== null && set(wd, { ...d, end_min: m })} />
               </>
             )}
           </Stack>

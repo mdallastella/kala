@@ -4,6 +4,7 @@ import { errorMessage } from '../api/client';
 import { parseQuick, useActions } from '../api/hooks';
 import type { Task } from '../api/types';
 import { dateTimeLabel, dueLabel, fromLocalInput, toLocalInput } from '../lib/format';
+import { DateTimeField } from './DateTimeField';
 
 interface Props {
   tasks: Task[];
@@ -85,13 +86,7 @@ export function DatePrompt({ tasks, kind, onClose, onError }: Props) {
           {kind === 'due' ? (
             <TextField type="date" label="Pick a date" value={value ?? ''} onChange={(e) => setValue(e.target.value || null)} slotProps={{ inputLabel: { shrink: true } }} />
           ) : (
-            <TextField
-              type="datetime-local"
-              label="Pick a time"
-              value={toLocalInput(value)}
-              onChange={(e) => setValue(fromLocalInput(e.target.value))}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
+            <DateTimeField label="Pick a time" value={toLocalInput(value)} onChange={(v) => setValue(fromLocalInput(v))} />
           )}
           {tasks.length > 1 && (
             <Typography variant="caption" color="text.secondary">

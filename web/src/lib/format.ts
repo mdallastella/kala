@@ -103,9 +103,10 @@ export function minutesToClock(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
-export function clockToMinutes(v: string): number {
-  const [h, m] = v.split(':').map(Number);
-  return h * 60 + m;
+/** Minutes since midnight from a 24h H:MM or HH:MM clock, or null when invalid. */
+export function parseClock(v: string): number | null {
+  const m = v.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
 /** Full local date and time, 24h. */
