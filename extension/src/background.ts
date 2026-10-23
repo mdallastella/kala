@@ -5,10 +5,47 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === 'install' && !(await getSettings())) await chrome.runtime.openOptionsPage();
 });
 
-// A different server or token invalidates the cached tags.
+// A different server or token invalidates the cached tags and timer dot.
 chrome.storage.onChanged.addListener((_, area) => {
-  if (area === 'local') void chrome.storage.session.remove('tags');
+  if (area !== 'local') return;
+  void chrome.storage.session.remove('tags');
+  void setTimerDot(false).then(refreshTimerDot);
 });
+
+// The toolbar icon shows a red dot while a timer runs. Timer calls made here update it
+// at once; the alarm catches timers started or stopped elsewhere.
+const iconSizes = [16, 32];
+async function setTimerDot(on: boolean) {
+  if (!on) {
+    await chrome.action.setIcon({ path: Object.fromEntries(iconSizes.map((n) => [n, `icons/icon-${n}.png`])) });
+    return;
+  }
+  const imageData: Record<number, ImageData> = {};
+  for (const n of iconSizes) {
+    const bmp = await createImageBitmap(await (await fetch(chrome.runtime.getURL(`icons/icon-${n}.png`))).blob());
+    const ctx = new OffscreenCanvas(n, n).getContext('2d')!;
+    ctx.drawImage(bmp, 0, 0, n, n);
+    const r = n * 0.22;
+    ctx.beginPath();
+    ctx.arc(n - r, r, r, 0, 2 * Math.PI);
+    ctx.fillStyle = '#e5484d';
+    ctx.fill();
+    imageData[n] = ctx.getImageData(0, 0, n, n);
+  }
+  await chrome.action.setIcon({ imageData });
+}
+
+// callApi updates the dot from the response.
+const refreshTimerDot = () => callApi('GET', '/timers/active', undefined);
+
+// The worker restarts often; recreating the alarm each time would keep postponing it.
+void chrome.alarms.get('timers').then(async (a) => {
+  if (!a) await chrome.alarms.create('timers', { periodInMinutes: 1 });
+});
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === 'timers') void refreshTimerDot();
+});
+chrome.runtime.onStartup.addListener(() => void refreshTimerDot());
 
 async function callApi(method: string, path: string, body: unknown): Promise<ApiResponse> {
   const s = await getSettings();
@@ -36,6 +73,8 @@ async function callApi(method: string, path: string, body: unknown): Promise<Api
     return { ok: false, status: res.status, error };
   }
   if (method === 'GET' && path === '/tags') await chrome.storage.session.set({ tags: parsed });
+  if (method === 'GET' && path === '/timers/active') await setTimerDot((parsed as unknown[]).length > 0);
+  else if (method === 'POST' && /^\/(timers|tasks\/\d+\/timer)\//.test(path)) void refreshTimerDot();
   return { ok: true, status: res.status, body: parsed };
 }
 

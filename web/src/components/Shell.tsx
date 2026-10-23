@@ -33,7 +33,7 @@ import { Notifications } from './Notifications';
 import { QuickAdd } from './QuickAdd';
 import { Sidebar, tagQuery } from './Sidebar';
 import { TagPicker } from './TagPicker';
-import { TimerStrip } from './TimerStrip';
+import { TimerStrip, useTimerFavicon } from './TimerStrip';
 import { UiContext, type NotifyAction, type Ui } from './ui';
 
 const DRAWER = 248;
@@ -51,6 +51,7 @@ export function Shell() {
   const dark = (mode === 'system' ? systemMode : mode) === 'dark';
   const { data: tags = [] } = useTags();
   const { stopAll } = useActions();
+  useTimerFavicon();
 
   const [toast, setToast] = useState<Toast | null>(null);
   const [quick, setQuick] = useState<{ open: boolean; timer: boolean; prefill: string }>({ open: false, timer: false, prefill: '' });
