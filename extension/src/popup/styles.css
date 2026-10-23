@@ -1,0 +1,142 @@
+/* Colours follow web/src/theme.ts. */
+:root {
+  --primary: #5b5bd6;
+  --bg: #ffffff;
+  --text: rgba(0, 0, 0, 0.87);
+  --text-2: rgba(0, 0, 0, 0.6);
+  --divider: rgba(0, 0, 0, 0.12);
+  --selected: rgba(91, 91, 214, 0.1);
+  --error: #d32f2f;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #9b9bf4;
+    --bg: #18181c;
+    --text: #ffffff;
+    --text-2: rgba(255, 255, 255, 0.7);
+    --divider: rgba(255, 255, 255, 0.12);
+    --selected: rgba(155, 155, 244, 0.16);
+    --error: #f44336;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  width: 520px;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.43 Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.input {
+  all: unset;
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  caret-color: var(--primary);
+}
+
+.input::placeholder {
+  color: var(--text-2);
+  opacity: 1;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.item.selected {
+  background: var(--selected);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.error {
+  color: var(--error);
+}
+
+.suggestions {
+  margin: 8px 12px 0;
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+}
+
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 12px;
+}
+
+.preview strong {
+  margin-right: 4px;
+}
+
+.caption {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  font-size: 11.5px;
+}
+
+.chip.plain {
+  color: var(--text-2);
+}
+
+.badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--primary);
+}
+
+.toast {
+  padding: 16px;
+}

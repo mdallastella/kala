@@ -114,6 +114,19 @@ Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `add_tags`, `re
 `list_active_timers`, `list_time_entries`, `delete_time_entry`, `time_report`, `list_tags`, `rename_tag`,
 `list_namespaces`, `today_briefing`. Tokens also work as bearer tokens on the REST API.
 
+## Chrome extension
+
+`extension/` adds a toolbar popup for quick add: press `Alt+K` (or click the kala icon), type a
+task in the usual quick-add syntax (with preview and `#`/`@` completion), then `Enter` to add it or
+`Shift+Enter` to add it and start a timer on it. `Esc` cancels.
+
+1. `make ext`, then load `extension/dist` unpacked from `chrome://extensions` (Developer mode).
+2. In kala, create a token under **Settings → Access tokens & MCP**.
+3. On the extension's settings page, enter the server URL and the token and allow access to the
+   server when Chrome asks.
+
+Change the shortcut at `chrome://extensions/shortcuts` ("Activate the extension").
+
 ## REST API
 
 JSON under `/api/v1`. Errors are `{"error": {"code", "message", "details?"}}`. Authenticate with
@@ -130,4 +143,5 @@ make lint   # gofmt, golangci-lint, eslint, tsc
 
 Layout: `cmd/kala` (entry point), `internal/service` (all business rules, shared by REST and MCP),
 `internal/{tags,filter,quickadd,dates}` (pure logic), `internal/{api,mcp,events,schedule,auth,store}`,
-and `web/` (Vite + React + MUI; `web/embed.go` embeds `web/dist`).
+`web/` (Vite + React + MUI; `web/embed.go` embeds `web/dist`), and `extension/` (Chrome extension,
+Vite + Preact).

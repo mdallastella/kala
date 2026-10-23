@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 - `kala` is a Go 1.27 server/service (module path `kala`) with a React + MUI frontend in `web/` (embedded into the binary from `web/dist`).
+- `extension/` is a Chrome (MV3) extension, Preact + Vite, that brings quick add (with an optional timer) to any page over the REST API with a personal access token.
 - Business rules live in `internal/service`, shared by the REST API (`internal/api`) and the MCP server (`internal/mcp`); see README.md for the domain model.
 
 ## Dependencies
@@ -13,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Format: `gofmt -w .` (or `goimports -w .` if installed; it isn't currently)
 - Lint: `golangci-lint run ./...` (v2 config in `.golangci.yml`)
 - Test: `go test ./...`
-- Frontend (in `web/`): `npm run lint`, `npm run typecheck`, `npm test`
+- Frontend (in `web/` and `extension/`): `npm run lint`, `npm run typecheck`, `npm test`
 - `make lint` / `make test` run all of the above
 
 ## Git

@@ -19,6 +19,7 @@ linters:
   exclusions:
     paths:
       - web/node_modules
+      - extension/node_modules
 
 formatters:
   enable:
@@ -26,3 +27,4 @@ formatters:
   exclusions:
     paths:
       - web/node_modules
+      - extension/node_modules
