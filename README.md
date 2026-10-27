@@ -57,6 +57,7 @@ Put a TLS-terminating reverse proxy (Caddy, nginx) in front for anything beyond 
 ```sh
 ./kala backup /path/to/backup.db                        # consistent copy while running
 echo 'new-password' | ./kala user reset-password me@example.com   # also signs out all sessions
+./kala healthcheck                                      # exit 0 if the server answers /healthz
 ```
 
 ## Keyboard

@@ -3,6 +3,7 @@
 //	kala [serve]                    run the HTTP server (default)
 //	kala backup <file>              write a consistent copy of the database
 //	kala user reset-password <email>  set a new password read from stdin
+//	kala healthcheck                exit non-zero unless the local server answers /healthz
 package main
 
 import (
@@ -63,8 +64,10 @@ func run(args []string, log *slog.Logger) error {
 			return errors.New("usage: kala user reset-password <email>  (password read from stdin)")
 		}
 		return withDB(ctx, cfg, func(svc *service.Service, _ dbBackup) error { return resetPassword(ctx, svc, args[1]) })
+	case "healthcheck":
+		return healthcheck(ctx, cfg)
 	case "help", "-h", "--help":
-		fmt.Println("usage: kala [serve | backup <file> | user reset-password <email>]")
+		fmt.Println("usage: kala [serve | backup <file> | user reset-password <email> | healthcheck]")
 		return nil
 	}
 	return fmt.Errorf("unknown command %q", cmd)
@@ -91,6 +94,33 @@ func resetPassword(ctx context.Context, svc *service.Service, email string) erro
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "Password updated; existing sessions were signed out.")
+	return nil
+}
+
+// healthcheck probes the server listening on cfg.Addr; it exists because the
+// distroless image has no shell or curl for a Docker HEALTHCHECK.
+func healthcheck(ctx context.Context, cfg config.Config) error {
+	host, port, err := net.SplitHostPort(cfg.Addr)
+	if err != nil {
+		return fmt.Errorf("parse KALA_ADDR: %w", err)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(host, port)+"/healthz", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz: %s", resp.Status)
+	}
 	return nil
 }
 
