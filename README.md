@@ -145,3 +145,18 @@ Layout: `cmd/kala` (entry point), `internal/service` (all business rules, shared
 `internal/{tags,filter,quickadd,dates}` (pure logic), `internal/{api,mcp,events,schedule,auth,store}`,
 `web/` (Vite + React + MUI; `web/embed.go` embeds `web/dist`), and `extension/` (Chrome extension,
 Vite + Preact).
+
+### CI security gate
+
+The `docker` workflow runs [Trivy](https://trivy.dev) on every build: a repo scan (dependencies,
+Dockerfile misconfigurations, secrets) and a scan of the built image (OS packages and the Go binary).
+Fixable CRITICAL/HIGH findings fail the job, so the image is not pushed. Full reports go to the
+repository's Security tab. Accepted findings go in `.trivyignore` at the repo root, with a comment
+explaining why.
+
+Preview locally before pushing:
+
+```sh
+trivy fs --scanners vuln,misconfig,secret --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 .
+docker build -t kala:scan . && trivy image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 kala:scan
+```
