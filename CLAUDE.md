@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Test: `go test ./...`
 - Frontend (in `web/` and `extension/`): `npm run lint`, `npm run typecheck`, `npm test`
 - `make lint` / `make test` run all of the above
+- CI (`.github/workflows/docker.yml`) gates the image push on Trivy: fixable CRITICAL/HIGH in the repo or built image fails the build. Accepted findings go in `.trivyignore` with a comment. Commands to preview locally are in README.md ("CI security gate").
 
 ## Git
 - Conventional Commits: `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`.
