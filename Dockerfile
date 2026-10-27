@@ -23,4 +23,5 @@ ENV KALA_ADDR=:8080 KALA_DB_PATH=/data/kala.db
 VOLUME /data
 EXPOSE 8080
 USER nonroot
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/kala", "healthcheck"]
 ENTRYPOINT ["/kala"]
