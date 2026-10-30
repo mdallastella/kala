@@ -33,6 +33,8 @@ Filter language (search_tasks, time_report): space-separated terms, all must mat
 Quick-add syntax (create_task.quick, start_timer_new_task.quick):
   Write report #client:acme @kala !high due:fri remind:thu 9:00
   #tag, @project, !priority (or !1-!3), due:<date>, remind:<date> [HH:MM] | remind:+30m
+  spent:<45m|2h|1h30m> [HH:MM] logs time already spent, ending now or starting at HH:MM today
+  (create_task only).
   Dates: today, tomorrow, mon..sun, +3d, +2w, nwd (next working day), YYYY-MM-DD.`
 
 // Handler returns the Streamable HTTP handler. Requests must already carry

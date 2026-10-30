@@ -453,3 +453,35 @@ func TestActivitySort(t *testing.T) {
 		t.Errorf("last tracked = %v, %v", got[0].LastTrackedAt, got[1].LastTrackedAt)
 	}
 }
+
+func TestQuickAddSpent(t *testing.T) {
+	s, c := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	c.advance(30 * time.Second)
+
+	task := mustCreate(t, s, uid, service.TaskInput{Quick: "Call bob spent:1h30m 8:00 @x"})
+	if task.TrackedSeconds != 90*60 || task.RunningSince != nil {
+		t.Fatalf("tracked = %d, running = %v", task.TrackedSeconds, task.RunningSince)
+	}
+	entries, err := s.TimeEntries(ctx, uid, service.EntryFilter{From: start.Add(-6 * time.Hour), To: c.t, TaskID: task.ID})
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("entries = %v, %v", entries, err)
+	}
+	// 08:00 Rome is 06:00 UTC.
+	if e := entries[0]; !e.StartedAt.Equal(start.Add(-2*time.Hour)) || e.StoppedAt == nil || !e.StoppedAt.Equal(start.Add(-30*time.Minute)) {
+		t.Errorf("entry = %+v", e)
+	}
+
+	ended := mustCreate(t, s, uid, service.TaskInput{Quick: "Review spent:20m"})
+	if ended.TrackedSeconds != 20*60 {
+		t.Errorf("tracked = %d", ended.TrackedSeconds)
+	}
+
+	if _, err := s.StartTimerNewTask(ctx, uid, service.TaskInput{Quick: "x spent:20m"}); !service.IsCode(err, service.CodeInvalid) {
+		t.Errorf("start-new with spent: want invalid, got %v", err)
+	}
+	if _, err := s.CreateTask(ctx, uid, service.TaskInput{Quick: "x spent:1h 9:30"}); !service.IsCode(err, service.CodeInvalid) {
+		t.Errorf("spent ending in the future: want invalid, got %v", err)
+	}
+}

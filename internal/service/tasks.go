@@ -331,7 +331,8 @@ func (s *Service) Tasks(ctx context.Context, userID int64, opts ListOptions) ([]
 }
 
 // TaskInput creates a task. When Quick is set it is parsed with the
-// quick-add syntax and merged with the other fields.
+// quick-add syntax and merged with the other fields; its spent: token logs a
+// completed time entry on the new task.
 type TaskInput struct {
 	Quick    string     `json:"quick,omitempty"`
 	Title    string     `json:"title,omitempty"`
@@ -339,6 +340,8 @@ type TaskInput struct {
 	Tags     []string   `json:"tags,omitempty"`
 	DueDate  *string    `json:"due_date,omitempty"`
 	RemindAt *time.Time `json:"remind_at,omitempty"`
+
+	spent *quickadd.Interval
 }
 
 // ParseQuick parses a quick-add line for a user.
@@ -391,6 +394,7 @@ func (s *Service) resolveInput(ctx context.Context, userID int64, in TaskInput) 
 		if in.RemindAt == nil {
 			in.RemindAt = res.RemindAt
 		}
+		in.spent = res.Spent
 	}
 	var err error
 	if in.Title, err = validateTitle(in.Title); err != nil {
@@ -420,6 +424,12 @@ func (s *Service) createTask(ctx context.Context, tx *sql.Tx, userID int64, in T
 	if err := setTaskTags(ctx, tx, userID, id, set); err != nil {
 		return 0, err
 	}
+	if in.spent != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO time_entries (user_id, task_id, started_at, stopped_at) VALUES (?, ?, ?, ?)",
+			userID, id, ts(in.spent.StartedAt), ts(in.spent.StoppedAt)); err != nil {
+			return 0, err
+		}
+	}
 	return id, s.recomputeClosed(ctx, tx, userID, []int64{id})
 }
 
@@ -436,7 +446,11 @@ func (s *Service) CreateTask(ctx context.Context, userID int64, in TaskInput) (*
 	}); err != nil {
 		return nil, err
 	}
-	s.publish(userID, "tasks", "tags")
+	kinds := []string{"tasks", "tags"}
+	if in.spent != nil {
+		kinds = append(kinds, "timers")
+	}
+	s.publish(userID, kinds...)
 	return s.Task(ctx, userID, id)
 }
 
