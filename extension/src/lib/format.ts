@@ -38,6 +38,16 @@ export function timeLabel(iso: string, today = new Date()): string {
   return isoDate(d) === isoDate(today) ? time : `${dueLabel(isoDate(d), today)} ${time}`;
 }
 
+/** Formats seconds as 1h 05m / 12m / 45s. */
+export function duration(secs: number): string {
+  secs = Math.max(0, Math.floor(secs));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+  if (m > 0) return `${m}m`;
+  return `${secs}s`;
+}
+
 export function dateTimeLabel(iso: string): string {
   const d = new Date(iso);
   const day = dueLabel(isoDate(d));

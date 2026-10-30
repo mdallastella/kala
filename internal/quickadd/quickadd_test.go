@@ -49,9 +49,39 @@ func TestParse(t *testing.T) {
 			t.Errorf("%q remind = %s, want %s", tc.in, got, tc.remind)
 		}
 	}
-	for _, bad := range []string{"", "#only-tags", "x due:someday", "x #bad,tag"} {
+	for _, bad := range []string{"", "#only-tags", "x due:someday", "x #bad,tag",
+		"x spent:", "x spent:0m", "x spent:25h", "x spent:1.5h", "x spent:9:00", "x spent:1h 9:30"} {
 		if _, err := Parse(bad, now, cal); err == nil {
 			t.Errorf("%q: want error", bad)
+		}
+	}
+}
+
+func TestParseSpent(t *testing.T) {
+	rome, _ := time.LoadLocation("Europe/Rome")
+	cal := dates.Calendar{Loc: rome}
+	// Wednesday 2026-10-21 10:00:30 Rome.
+	now := time.Date(2026, 10, 21, 10, 0, 30, 0, rome)
+	cases := []struct{ in, title, from, to string }{
+		{"Call bob spent:45m", "Call bob", "09:15", "10:00"},
+		{"Call bob spent:1h30m 8:00 #client", "Call bob", "08:00", "09:30"},
+		{"Call bob spent:2h", "Call bob", "08:00", "10:00"},
+		{"Call bob spent:1h 9:00", "Call bob", "09:00", "10:00"},
+		{"spent:30m Call 11:00", "Call 11:00", "09:30", "10:00"},
+	}
+	for _, tc := range cases {
+		r, err := Parse(tc.in, now, cal)
+		if err != nil {
+			t.Errorf("%q: %v", tc.in, err)
+			continue
+		}
+		if r.Spent == nil {
+			t.Errorf("%q: no spent", tc.in)
+			continue
+		}
+		from, to := r.Spent.StartedAt.In(rome).Format("15:04"), r.Spent.StoppedAt.In(rome).Format("15:04")
+		if r.Title != tc.title || from != tc.from || to != tc.to {
+			t.Errorf("%q = %q %s-%s, want %q %s-%s", tc.in, r.Title, from, to, tc.title, tc.from, tc.to)
 		}
 	}
 }

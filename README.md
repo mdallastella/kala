@@ -84,6 +84,8 @@ Write report #client:acme @kala !high due:fri remind:thu 9:00
 ```
 
 `#tag`, `@project` (→ `project:…`), `!high` or `!1`–`!3`, `due:<date>`, `remind:<date> [HH:MM]`, `remind:14:30`, `remind:+30m`.
+`spent:<duration> [HH:MM]` logs time already spent on the new task (`45m`, `2h`, `1h30m`, up to 24h), ending now
+or starting at `HH:MM` today: `Call with Bob @acme spent:45m 14:00`. It can't be combined with starting a timer.
 Dates: `today`, `tomorrow`, `mon`…`sun`, `+3d`, `+2w`, `nwd` (next working day), `YYYY-MM-DD`.
 
 ### Filter language

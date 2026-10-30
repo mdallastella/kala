@@ -70,6 +70,9 @@ func (s *Service) StartTimerNewTask(ctx context.Context, userID int64, in TaskIn
 	if err != nil {
 		return nil, err
 	}
+	if in.spent != nil {
+		return nil, errf(CodeInvalid, "spent: logs time already spent; add the task without starting a timer")
+	}
 	var id int64
 	err = s.tx(ctx, func(tx *sql.Tx) error {
 		if id, err = s.createTask(ctx, tx, userID, in); err != nil {

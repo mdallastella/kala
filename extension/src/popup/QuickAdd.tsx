@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { TargetedEvent } from 'preact';
 import { errorMessage, get, post, send } from '../lib/api';
-import { dateTimeLabel, dueLabel, timeLabel } from '../lib/format';
+import { dateTimeLabel, dueLabel, duration, timeLabel } from '../lib/format';
 import { currentToken, searchQuery, tagColor } from '../lib/quickadd';
 import type { QuickParse, Tag, Task, TimeEntry } from '../lib/types';
 
@@ -237,9 +237,15 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
             })}
             {preview.due_date && <span class="chip plain">due {dueLabel(preview.due_date)}</span>}
             {preview.remind_at && <span class="chip plain">remind {dateTimeLabel(preview.remind_at)}</span>}
+            {preview.spent && (
+              <span class="chip plain">
+                spent {duration((new Date(preview.spent.stopped_at).getTime() - new Date(preview.spent.started_at).getTime()) / 1000)} ·{' '}
+                {timeLabel(preview.spent.started_at)}–{timeLabel(preview.spent.stopped_at)}
+              </span>
+            )}
           </>
         ) : (
-          <span class="caption">#tag · @project · !high/!1 · due:fri · remind:thu 9:00 · Tab completes · Enter adds · Shift+Enter adds and starts a timer</span>
+          <span class="caption">#tag · @project · !high/!1 · due:fri · remind:thu 9:00 · spent:1h30m 9:00 · Tab completes · Enter adds · Shift+Enter adds and starts a timer</span>
         )}
       </div>
       {timers.length > 0 && (

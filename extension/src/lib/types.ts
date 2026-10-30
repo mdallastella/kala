@@ -31,6 +31,8 @@ export interface QuickParse {
   tags: string[];
   due_date?: string;
   remind_at?: string;
+  /** Time already spent, logged as a completed time entry. */
+  spent?: { started_at: string; stopped_at: string };
 }
 
 export interface ApiErrorBody {

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { errorMessage } from '../api/client';
 import { parseQuick, useActions, useTags } from '../api/hooks';
 import type { QuickParse } from '../api/types';
-import { dateTimeLabel, dueLabel } from '../lib/format';
+import { dateTimeLabel, dueLabel, duration, timeLabel } from '../lib/format';
 import { TagChip } from './TagChip';
 
 interface Props {
@@ -20,6 +20,11 @@ interface Props {
 function currentToken(text: string): { prefix: '#' | '@'; partial: string } | null {
   const m = text.match(/(?:^|\s)([#@])(\S*)$/);
   return m ? { prefix: m[1] as '#' | '@', partial: m[2].toLowerCase() } : null;
+}
+
+function spentLabel(s: NonNullable<QuickParse['spent']>): string {
+  const secs = (new Date(s.stopped_at).getTime() - new Date(s.started_at).getTime()) / 1000;
+  return `${duration(secs)} · ${timeLabel(s.started_at)}–${timeLabel(s.stopped_at)}`;
 }
 
 export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
@@ -126,10 +131,11 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
               ))}
               {preview.due_date && <Chip icon={<EventIcon />} label={dueLabel(preview.due_date)} variant="outlined" />}
               {preview.remind_at && <Chip icon={<AlarmIcon />} label={dateTimeLabel(preview.remind_at)} variant="outlined" />}
+              {preview.spent && <Chip icon={<TimerIcon />} label={spentLabel(preview.spent)} variant="outlined" />}
             </Stack>
           ) : (
             <Typography variant="caption" color="text.secondary">
-              #tag · @project · !high/!1 · due:fri · remind:thu 9:00 · Tab completes · Enter saves
+              #tag · @project · !high/!1 · due:fri · remind:thu 9:00 · spent:1h30m 9:00 · Tab completes · Enter saves
             </Typography>
           )}
         </Box>
