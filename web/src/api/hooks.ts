@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { del, get, patch, post, put } from './client';
 import type {
+  CleanupResult,
   AccessToken,
   Namespace,
   QuickParse,
@@ -122,6 +123,7 @@ export function useActions() {
     ),
     renameTag: m((r: { from: string; to: string; confirm: boolean }) => post<RenamePreview>('/tags/rename', r), 'tags', 'tasks'),
     deleteTag: m((id: number) => del(`/tags/${id}`), 'tags', 'tasks'),
+    cleanupTags: m((confirm: boolean) => post<CleanupResult>('/tags/cleanup', { confirm }), 'tags'),
     saveNamespace: m(
       (n: Omit<Namespace, 'id'> & { id?: number }) =>
         n.id ? put<Namespace>(`/namespaces/${n.id}`, { ...n, id: undefined }) : post<Namespace>('/namespaces', n),

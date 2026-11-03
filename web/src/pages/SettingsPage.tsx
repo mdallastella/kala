@@ -288,14 +288,38 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
 
 function TagsSection() {
   const { data: tags = [] } = useTags();
-  const { setTagMeta, deleteTag } = useActions();
+  const { setTagMeta, deleteTag, cleanupTags } = useActions();
   const ui = useUi();
   const [renaming, setRenaming] = useState<Tag | null>(null);
   const [filter, setFilter] = useState('');
   const shown = tags.filter((t) => t.name.includes(filter.toLowerCase()));
+  const cleanup = async () => {
+    try {
+      const preview = await cleanupTags.mutateAsync(false);
+      const n = preview.tags.length;
+      if (n === 0) {
+        ui.notify('No unused tags');
+        return;
+      }
+      const list = preview.tags.slice(0, 20).join(', ') + (n > 20 ? `, … (${n - 20} more)` : '');
+      if (!window.confirm(`Delete ${n} unused tag${n === 1 ? '' : 's'}?\n\n${list}`)) return;
+      const res = await cleanupTags.mutateAsync(true);
+      ui.notify(`Deleted ${res.tags.length} unused tag${res.tags.length === 1 ? '' : 's'}`);
+    } catch (e) {
+      ui.notify(errorMessage(e));
+    }
+  };
   return (
-    <Section title="Tags" hint="Colors are inherited by descendant tags. Renaming moves the whole subtree and merges into existing tags.">
-      <TextField placeholder="Filter tags" value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ mb: 1 }} />
+    <Section
+      title="Tags"
+      hint="Colors are inherited by descendant tags. Renaming moves the whole subtree and merges into existing tags. Clean up deletes tags no task uses (trash included), except colored, pinned and namespace-value tags."
+    >
+      <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+        <TextField placeholder="Filter tags" value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ flex: 1 }} />
+        <Button variant="outlined" onClick={() => void cleanup()} disabled={cleanupTags.isPending}>
+          Clean up
+        </Button>
+      </Stack>
       <List dense disablePadding sx={{ maxHeight: 360, overflowY: 'auto' }}>
         {shown.map((t) => (
           <ListItem key={t.id} disableGutters>

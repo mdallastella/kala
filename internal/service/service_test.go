@@ -314,6 +314,57 @@ func TestRenameTag(t *testing.T) {
 	}
 }
 
+func TestCleanupTags(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	used := mustCreate(t, s, uid, service.TaskInput{Title: "used", Tags: []string{"keep", "drop:me", "pinned", "colored", "status:pending"}})
+	trashed := mustCreate(t, s, uid, service.TaskInput{Title: "trashed", Tags: []string{"in-trash"}})
+	if err := s.DeleteTask(ctx, uid, trashed.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UpdateTask(ctx, uid, used.ID, service.TaskPatch{RemoveTags: []string{"drop:me", "pinned", "colored"}, AddTags: []string{"status:open"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetTagMeta(ctx, uid, service.TagMeta{Name: "pinned", Pinned: service.Optional[bool]{Set: true, Value: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetTagMeta(ctx, uid, service.TagMeta{Name: "colored", Color: service.Optional[string]{Set: true, Value: "#ff0000"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	prev, err := s.CleanupTags(ctx, uid, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prev.Applied || !slices.Equal(prev.Tags, []string{"drop:me"}) {
+		t.Fatalf("preview = %+v", prev)
+	}
+	if all, _ := s.Tags(ctx, uid); !slices.ContainsFunc(all, func(g service.Tag) bool { return g.Name == "drop:me" }) {
+		t.Fatal("preview deleted tags")
+	}
+
+	res, err := s.CleanupTags(ctx, uid, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Applied || !slices.Equal(res.Tags, prev.Tags) {
+		t.Fatalf("cleanup = %+v", res)
+	}
+	all, _ := s.Tags(ctx, uid)
+	names := []string{}
+	for _, g := range all {
+		names = append(names, g.Name)
+	}
+	// Unused namespace values (status:pending here) are kept.
+	if slices.Contains(names, "drop:me") || !slices.Contains(names, "in-trash") || !slices.Contains(names, "pinned") || !slices.Contains(names, "status:pending") {
+		t.Fatalf("tags after cleanup = %v", names)
+	}
+	if again, _ := s.CleanupTags(ctx, uid, true); len(again.Tags) != 0 || again.Applied {
+		t.Fatalf("second cleanup = %+v", again)
+	}
+}
+
 func TestTrashAndExport(t *testing.T) {
 	s, c := newService(t)
 	ctx := context.Background()

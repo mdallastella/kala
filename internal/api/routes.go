@@ -53,6 +53,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.Handle("GET "+p+"tags", s.authed(s.listTags))
 	mux.Handle("PUT "+p+"tags", s.authed(s.putTagMeta))
 	mux.Handle("POST "+p+"tags/rename", s.authed(s.renameTag))
+	mux.Handle("POST "+p+"tags/cleanup", s.authed(s.cleanupTags))
 	mux.Handle("DELETE "+p+"tags/{id}", s.authed(s.deleteTag))
 
 	mux.Handle("GET "+p+"namespaces", s.authed(s.listNamespaces))
@@ -555,6 +556,20 @@ func (s *Server) renameTag(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return writeJSON(w, http.StatusOK, prev)
+}
+
+func (s *Server) cleanupTags(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		Confirm bool `json:"confirm"`
+	}
+	if err := decode(w, r, &in, 0); err != nil {
+		return err
+	}
+	res, err := s.svc.CleanupTags(r.Context(), uid(r), in.Confirm)
+	if err != nil {
+		return err
+	}
+	return writeJSON(w, http.StatusOK, res)
 }
 
 func (s *Server) deleteTag(w http.ResponseWriter, r *http.Request) error {
