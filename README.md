@@ -60,6 +60,25 @@ echo 'new-password' | ./kala user reset-password me@example.com   # also signs o
 ./kala healthcheck                                      # exit 0 if the server answers /healthz
 ```
 
+### Migrating from Vikunja and Clockify
+
+`kala convert` turns a Vikunja export and/or a Clockify CSV into a kala export. It runs offline; load the
+result with **Settings → Import JSON**. Give both files in one run so the time entries land on the right tasks.
+
+```sh
+./kala convert --vikunja vikunja-export.zip --clockify clockify.csv --tz Europe/Rome > kala.json
+```
+
+- **Vikunja** (the export `.zip` or its `data.json`): each project becomes `project:<name>`, using the
+  project's own name and not its parents' ("Inbox" gives no project). Archived projects are included.
+  - Labels that name a project become an extra `project:` tag. Other labels become plain tags.
+  - Done tasks get `status:closed`. Priority maps 1 → low, 2 → medium, 3–5 → high.
+  - HTML descriptions become text. Repeats and task relations are written into the notes.
+- **Clockify** (detailed time entry CSV): entries are grouped by project and task (or description).
+  - A group attaches to the Vikunja task with the same title and project. Otherwise it becomes a new closed task.
+  - Client and tags are ignored.
+  - Times are read in `--tz` (default: the machine's timezone). DD/MM or MM/DD dates are detected from the file.
+
 ## Keyboard
 
 Press `?` in the app for the full, context-aware list.

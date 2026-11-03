@@ -357,3 +357,67 @@ func (s *Service) DeleteTag(ctx context.Context, userID, id int64) error {
 	}
 	return err
 }
+
+// CleanupResult lists the unused tags found, and whether they were deleted.
+type CleanupResult struct {
+	Tags    []string `json:"tags"`
+	Applied bool     `json:"applied"`
+}
+
+// CleanupTags finds the tags no task carries (trashed tasks included) and,
+// with confirm, deletes them. Tags the user configured are kept: those with a
+// color or a pin, and the values of defined namespaces (shown in the sidebar
+// even when unused).
+func (s *Service) CleanupTags(ctx context.Context, userID int64, confirm bool) (*CleanupResult, error) {
+	res := &CleanupResult{Tags: []string{}}
+	err := s.tx(ctx, func(tx *sql.Tx) error {
+		rules, err := s.rules(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		rows, err := tx.QueryContext(ctx, `SELECT g.id, g.name FROM tags g
+			WHERE g.user_id = ? AND g.color IS NULL AND g.pinned = 0
+			AND NOT EXISTS (SELECT 1 FROM task_tags tt WHERE tt.tag_id = g.id)
+			ORDER BY g.name`, userID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		var ids []int64
+		for rows.Next() {
+			var (
+				id   int64
+				name string
+			)
+			if err := rows.Scan(&id, &name); err != nil {
+				return err
+			}
+			ns, v := tags.Split(name)
+			if def, ok := rules[ns]; ok && (v == "" || def.Has(v)) {
+				continue
+			}
+			ids = append(ids, id)
+			res.Tags = append(res.Tags, name)
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if !confirm || len(ids) == 0 {
+			return nil
+		}
+		for _, id := range ids {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM tags WHERE id = ? AND user_id = ?", id, userID); err != nil {
+				return err
+			}
+		}
+		res.Applied = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if res.Applied {
+		s.publish(userID, "tags")
+	}
+	return res, nil
+}

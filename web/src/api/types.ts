@@ -126,6 +126,11 @@ export interface RenamePreview {
   applied: boolean;
 }
 
+export interface CleanupResult {
+  tags: string[];
+  applied: boolean;
+}
+
 export interface ApiErrorBody {
   code: string;
   message: string;
