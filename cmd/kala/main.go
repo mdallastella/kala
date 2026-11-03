@@ -4,12 +4,16 @@
 //	kala backup <file>              write a consistent copy of the database
 //	kala user reset-password <email>  set a new password read from stdin
 //	kala healthcheck                exit non-zero unless the local server answers /healthz
+//	kala convert [--vikunja <zip>] [--clockify <csv>] [--tz <zone>]
+//	                                write a kala export of Vikunja/Clockify data to stdout
 package main
 
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -24,6 +28,7 @@ import (
 	"kala/internal/auth"
 	"kala/internal/config"
 	"kala/internal/events"
+	"kala/internal/importer"
 	"kala/internal/mcp"
 	"kala/internal/schedule"
 	"kala/internal/service"
@@ -66,8 +71,11 @@ func run(args []string, log *slog.Logger) error {
 		return withDB(ctx, cfg, func(svc *service.Service, _ dbBackup) error { return resetPassword(ctx, svc, args[1]) })
 	case "healthcheck":
 		return healthcheck(ctx, cfg)
+	case "convert":
+		return convert(args)
 	case "help", "-h", "--help":
-		fmt.Println("usage: kala [serve | backup <file> | user reset-password <email> | healthcheck]")
+		fmt.Println("usage: kala [serve | backup <file> | user reset-password <email> | healthcheck |\n" +
+			"            convert [--vikunja <zip|json>] [--clockify <csv>] [--tz <zone>] > kala.json]")
 		return nil
 	}
 	return fmt.Errorf("unknown command %q", cmd)
@@ -94,6 +102,54 @@ func resetPassword(ctx context.Context, svc *service.Service, email string) erro
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "Password updated; existing sessions were signed out.")
+	return nil
+}
+
+// convert writes a kala export built from a Vikunja export and/or a Clockify
+// CSV to stdout, to be loaded with the regular JSON import.
+func convert(args []string) error {
+	fs := flag.NewFlagSet("convert", flag.ContinueOnError)
+	vikunjaPath := fs.String("vikunja", "", "Vikunja export (.zip or data.json)")
+	clockifyPath := fs.String("clockify", "", "Clockify detailed time entry export (.csv)")
+	tz := fs.String("tz", "", "timezone of Clockify times and Vikunja due dates (default: local)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *vikunjaPath == "" && *clockifyPath == "" || fs.NArg() > 0 {
+		return errors.New("usage: kala convert [--vikunja <zip|json>] [--clockify <csv>] [--tz <zone>] > kala.json")
+	}
+	loc := time.Local
+	if *tz != "" {
+		var err error
+		if loc, err = time.LoadLocation(*tz); err != nil {
+			return fmt.Errorf("--tz: %w", err)
+		}
+	}
+	read := func(path string) ([]byte, error) {
+		if path == "" {
+			return nil, nil
+		}
+		return os.ReadFile(path) //nolint:gosec // paths come from the operator running the CLI
+	}
+	vikunja, err := read(*vikunjaPath)
+	if err != nil {
+		return err
+	}
+	clockify, err := read(*clockifyPath)
+	if err != nil {
+		return err
+	}
+	ex, st, err := importer.Convert(vikunja, clockify, loc, time.Now())
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(ex); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "timezone %s: %d tasks, %d time entries; %d Clockify groups matched a Vikunja task, %d became new tasks\n",
+		loc, st.Tasks, st.Entries, st.Matched, st.Created)
 	return nil
 }
 
