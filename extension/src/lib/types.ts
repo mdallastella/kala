@@ -18,6 +18,11 @@ export interface Tag {
   open: number;
 }
 
+export interface Namespace {
+  name: string;
+  values: { value: string }[];
+}
+
 export interface TimeEntry {
   id: number;
   task_id: number;

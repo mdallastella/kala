@@ -344,14 +344,28 @@ type TaskInput struct {
 	spent *quickadd.Interval
 }
 
-// ParseQuick parses a quick-add line for a user.
+// ParseQuick parses a quick-add line for a user. Its tags are checked against
+// the namespace rules, so a preview fails exactly when saving would.
 func (s *Service) ParseQuick(ctx context.Context, userID int64, line string) (*quickadd.Result, error) {
 	cal, err := s.calendar(ctx, s.db, userID)
 	if err != nil {
 		return nil, err
 	}
-	res, err := quickadd.Parse(line, s.now(), cal)
+	rules, err := s.rules(ctx, s.db, userID)
 	if err != nil {
+		return nil, err
+	}
+	var prios []string
+	if ns := rules[filter.PriorityNS]; ns != nil {
+		for _, v := range ns.Values {
+			prios = append(prios, v.Value)
+		}
+	}
+	res, err := quickadd.Parse(line, s.now(), cal, prios)
+	if err != nil {
+		return nil, errf(CodeInvalid, "%s", err.Error())
+	}
+	if _, err := rules.Apply(nil, res.Tags, nil); err != nil {
 		return nil, errf(CodeInvalid, "%s", err.Error())
 	}
 	return &res, nil
@@ -455,8 +469,11 @@ func (s *Service) CreateTask(ctx context.Context, userID int64, in TaskInput) (*
 }
 
 // TaskPatch is a partial task update. Tags replaces the whole tag set;
-// AddTags/RemoveTags edit it incrementally.
+// AddTags/RemoveTags edit it incrementally. Quick is a quick-add line: its
+// title replaces the title, its tags are added and its due date and reminder
+// are set, unless the patch sets those fields itself.
 type TaskPatch struct {
+	Quick      string              `json:"quick"`
 	Title      Optional[string]    `json:"title"`
 	Notes      Optional[string]    `json:"notes"`
 	DueDate    Optional[string]    `json:"due_date"`
@@ -469,9 +486,39 @@ type TaskPatch struct {
 	Closed Optional[bool] `json:"closed"`
 }
 
+// resolvePatch merges a patch's quick-add line into its fields.
+func (s *Service) resolvePatch(ctx context.Context, userID int64, p TaskPatch) (TaskPatch, error) {
+	if p.Quick == "" {
+		return p, nil
+	}
+	res, err := s.ParseQuick(ctx, userID, p.Quick)
+	if err != nil {
+		return p, err
+	}
+	if res.Spent != nil {
+		return p, errf(CodeInvalid, "spent: only works when adding a task; log time on the Time page")
+	}
+	if !p.Title.Set {
+		p.Title = Some(res.Title)
+	}
+	p.AddTags = append(p.AddTags, res.Tags...)
+	if !p.DueDate.Set && res.DueDate != "" {
+		p.DueDate = Some(res.DueDate)
+	}
+	if !p.RemindAt.Set && res.RemindAt != nil {
+		p.RemindAt = Some(*res.RemindAt)
+	}
+	p.Quick = ""
+	return p, nil
+}
+
 // UpdateTask applies a patch.
 func (s *Service) UpdateTask(ctx context.Context, userID, id int64, p TaskPatch) (*Task, error) {
-	err := s.tx(ctx, func(tx *sql.Tx) error { return s.updateTask(ctx, tx, userID, id, p) })
+	p, err := s.resolvePatch(ctx, userID, p)
+	if err != nil {
+		return nil, err
+	}
+	err = s.tx(ctx, func(tx *sql.Tx) error { return s.updateTask(ctx, tx, userID, id, p) })
 	if err != nil {
 		return nil, err
 	}
@@ -637,6 +684,7 @@ const (
 	BulkAddTags    = "add_tags"
 	BulkRemoveTags = "remove_tags"
 	BulkSetDue     = "set_due"
+	BulkSetRemind  = "set_remind"
 	BulkClose      = "close"
 	BulkReopen     = "reopen"
 	BulkDelete     = "delete"
@@ -645,10 +693,11 @@ const (
 
 // BulkInput applies one operation to several tasks atomically.
 type BulkInput struct {
-	IDs     []int64          `json:"ids"`
-	Op      string           `json:"op"`
-	Tags    []string         `json:"tags,omitempty"`
-	DueDate Optional[string] `json:"due_date"`
+	IDs      []int64             `json:"ids"`
+	Op       string              `json:"op"`
+	Tags     []string            `json:"tags,omitempty"`
+	DueDate  Optional[string]    `json:"due_date"`
+	RemindAt Optional[time.Time] `json:"remind_at"`
 }
 
 // Bulk applies an operation to many tasks in one transaction.
@@ -672,6 +721,11 @@ func (s *Service) Bulk(ctx context.Context, userID int64, in BulkInput) error {
 					return errf(CodeInvalid, "due_date is required (null clears it)")
 				}
 				err = s.updateTask(ctx, tx, userID, id, TaskPatch{DueDate: in.DueDate})
+			case BulkSetRemind:
+				if !in.RemindAt.Set {
+					return errf(CodeInvalid, "remind_at is required (null clears it)")
+				}
+				err = s.updateTask(ctx, tx, userID, id, TaskPatch{RemindAt: in.RemindAt})
 			case BulkClose:
 				err = s.updateTask(ctx, tx, userID, id, TaskPatch{Closed: Some(true)})
 			case BulkReopen:

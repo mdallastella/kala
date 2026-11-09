@@ -1,13 +1,10 @@
-import { Box, Chip, Dialog, DialogContent, List, ListItemButton, Stack, TextField, Typography } from '@mui/material';
-import AlarmIcon from '@mui/icons-material/Alarm';
-import EventIcon from '@mui/icons-material/Event';
+import { Box, Dialog, DialogContent, List, ListItemButton, TextField, Typography } from '@mui/material';
 import TimerIcon from '@mui/icons-material/Timer';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { errorMessage } from '../api/client';
-import { parseQuick, useActions, useTags } from '../api/hooks';
-import type { QuickParse } from '../api/types';
-import { dateTimeLabel, dueLabel, duration, timeLabel } from '../lib/format';
-import { TagChip } from './TagChip';
+import { useActions, useNamespaces, useTags } from '../api/hooks';
+import { completeToken, currentToken, suggestions as suggest } from '../lib/quickadd';
+import { QuickPreview, TIMER_SPENT_ERROR, useQuickParse } from './QuickPreview';
 
 interface Props {
   timer: boolean;
@@ -16,64 +13,43 @@ interface Props {
   onDone: (message: string) => void;
 }
 
-/** The token being typed at the end of the input, if it is a tag token. */
-function currentToken(text: string): { prefix: '#' | '@'; partial: string } | null {
-  const m = text.match(/(?:^|\s)([#@])(\S*)$/);
-  return m ? { prefix: m[1] as '#' | '@', partial: m[2].toLowerCase() } : null;
-}
-
-function spentLabel(s: NonNullable<QuickParse['spent']>): string {
-  const secs = (new Date(s.stopped_at).getTime() - new Date(s.started_at).getTime()) / 1000;
-  return `${duration(secs)} · ${timeLabel(s.started_at)}–${timeLabel(s.stopped_at)}`;
-}
-
+/** Enter adds the task; Shift+Enter (or opening it with Q) also starts a timer on it. */
 export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
   const [text, setText] = useState(prefill);
-  // Parse result for a given text; stale results are ignored when rendering.
-  const [parsed, setParsed] = useState<{ text: string; preview?: QuickParse; error?: string }>({ text: '' });
   const [submitError, setSubmitError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [shift, setShift] = useState(false);
   const [sel, setSel] = useState(0);
   const { data: tags = [] } = useTags();
+  const { data: nss = [] } = useNamespaces();
   const { create, startNew } = useActions();
-
-  useEffect(() => {
-    if (!text.trim()) return;
-    const t = setTimeout(() => {
-      parseQuick(text)
-        .then((p) => setParsed({ text, preview: p }))
-        .catch((e) => setParsed({ text, error: errorMessage(e) }));
-    }, 150);
-    return () => clearTimeout(t);
-  }, [text]);
-  const empty = !text.trim();
-  const preview = empty ? null : (parsed.preview ?? null);
-  const error = submitError || (!empty && parsed.text === text ? (parsed.error ?? '') : '');
+  const { preview, error: parseError } = useQuickParse(text);
+  const withTimer = timer || shift;
+  const error = submitError || parseError || (withTimer && preview?.spent ? TIMER_SPENT_ERROR : '');
 
   const token = currentToken(text);
-  const suggestions = useMemo(() => {
-    if (!token) return [];
-    const names = tags.map((t) => t.name);
-    const pool = token.prefix === '@' ? names.filter((n) => n.startsWith('project:')).map((n) => n.slice(8)) : names;
-    return pool.filter((n) => n.includes(token.partial) && n !== token.partial).slice(0, 8);
-  }, [token, tags]);
+  const suggestions = useMemo(() => suggest(token, tags.map((t) => t.name), nss), [token, tags, nss]);
 
   const complete = (value: string) => {
-    setText(text.replace(/([#@])(\S*)$/, `$1${value} `));
+    setText(completeToken(text, value));
     setSel(0);
   };
 
-  const submit = async () => {
-    if (!text.trim() || error) return;
+  const submit = async (startTimer: boolean) => {
+    if (!text.trim() || busy || submitError || parseError || (startTimer && preview?.spent)) return;
+    setBusy(true);
     try {
-      const t = timer ? await startNew.mutateAsync(text) : await create.mutateAsync({ quick: text });
-      onDone(timer ? `Started timer on “${t.title}”` : `Created “${t.title}”`);
+      const t = startTimer ? await startNew.mutateAsync(text) : await create.mutateAsync({ quick: text });
+      onDone(startTimer ? `Started timer on “${t.title}”` : `Created “${t.title}”`);
       onClose();
     } catch (e) {
       setSubmitError(errorMessage(e));
+      setBusy(false);
     }
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    setShift(e.shiftKey);
     if (suggestions.length > 0 && (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
       if (e.key === 'Tab') complete(suggestions[sel] ?? suggestions[0]);
@@ -82,7 +58,7 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      void submit();
+      void submit(timer || e.shiftKey);
     }
   };
 
@@ -99,8 +75,13 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
             setSubmitError('');
           }}
           onKeyDown={onKeyDown}
+          onKeyUp={(e) => setShift(e.shiftKey)}
+          onBlur={() => setShift(false)}
           slotProps={{
-            input: { startAdornment: timer ? <TimerIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} /> : undefined },
+            input: {
+              readOnly: busy,
+              startAdornment: withTimer ? <TimerIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} /> : undefined,
+            },
             htmlInput: { 'aria-label': 'Quick add' },
           }}
         />
@@ -122,20 +103,11 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
               {error}
             </Typography>
           ) : preview ? (
-            <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, mr: 0.5 }}>
-                {preview.title}
-              </Typography>
-              {preview.tags.map((t) => (
-                <TagChip key={t} name={t} />
-              ))}
-              {preview.due_date && <Chip icon={<EventIcon />} label={dueLabel(preview.due_date)} variant="outlined" />}
-              {preview.remind_at && <Chip icon={<AlarmIcon />} label={dateTimeLabel(preview.remind_at)} variant="outlined" />}
-              {preview.spent && <Chip icon={<TimerIcon />} label={spentLabel(preview.spent)} variant="outlined" />}
-            </Stack>
+            <QuickPreview preview={preview} />
           ) : (
             <Typography variant="caption" color="text.secondary">
-              #tag · @project · !high/!1 · due:fri · remind:thu 9:00 · spent:1h30m 9:00 · Tab completes · Enter saves
+              #tag · @project · !high/!1 · due:fri · remind:thu 9:00
+              {timer ? ' · Tab completes · Enter adds and starts a timer' : ' · spent:1h30m 9:00 · Tab completes · Enter adds · Shift+Enter adds and starts a timer'}
             </Typography>
           )}
         </Box>

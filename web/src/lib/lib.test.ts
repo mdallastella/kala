@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
 import { ago, clock, dueLabel, duration, fullDateTime, isoDate, monthGrid, parseClock, timeLabel } from './format';
 import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
+import { completeToken, currentToken, suggestions } from './quickadd';
 import { hourRange, segments } from './timeline';
 
 const tag = (name: string, open = 1, color: string | null = null): Tag => ({ id: 0, name, color, pinned: false, position: 0, open, total: open });
@@ -111,5 +112,20 @@ describe('ago', () => {
     expect(ago('2026-10-21T11:15:00Z', now)).toBe('45m ago');
     expect(ago('2026-10-21T09:00:00Z', now)).toBe('3h ago');
     expect(ago('2026-10-18T12:00:00Z', now)).toBe('3d ago');
+  });
+});
+
+describe('quickadd', () => {
+  it('completes tags, namespace values, projects and priorities', () => {
+    const nss = [
+      { name: 'priority', values: [{ value: 'high' }, { value: 'low' }] },
+      { name: 'status', values: [{ value: 'open' }, { value: 'delegated' }] },
+    ];
+    const tags = ['project:kala', 'status:open', 'home'];
+    expect(currentToken('mail a#b')).toBeNull();
+    expect(suggestions(currentToken('x #del'), tags, nss)).toEqual(['status:delegated']);
+    expect(suggestions(currentToken('x @k'), tags, nss)).toEqual(['kala']);
+    expect(suggestions(currentToken('x !'), tags, nss)).toEqual(['high', 'low']);
+    expect(completeToken('x !hi', 'high')).toBe('x !high ');
   });
 });

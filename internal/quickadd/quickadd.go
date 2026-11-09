@@ -2,12 +2,13 @@
 //
 //	Write report #client:acme @kala !high due:fri remind:thu 9:00
 //
-// "#tag" adds a tag, "@x" adds project:x, "!x" sets priority:x (!1..!3 map to
-// high, medium, low), "due:" takes a date expression and "remind:" a date
+// "#tag" adds a tag, "@x" adds project:x, "!x" sets priority:x (!N picks the
+// Nth priority value, by default high, medium, low), "due:" takes a date expression and "remind:" a date
 // expression optionally followed by HH:MM (default: start of working hours),
 // a bare HH:MM, or a relative +30m / +2h. "spent:" logs time already spent
 // (45m, 2h, 1h30m), ending now or, when followed by HH:MM, starting at that
-// time today. Every other word is the title.
+// time today. "due:", "remind:" and "spent:" may appear once each. Every other
+// word is the title.
 package quickadd
 
 import (
@@ -37,20 +38,35 @@ type Interval struct {
 }
 
 var (
-	priorities = map[string]string{"1": "high", "2": "medium", "3": "low"}
-	durRe      = regexp.MustCompile(`^\+(\d{1,4})([mh])$`)
-	spentRe    = regexp.MustCompile(`^(?:(\d{1,2})h)?(?:(\d{1,4})m)?$`)
+	// DefaultPriorities are the values !1..!3 pick without a priority namespace.
+	DefaultPriorities = []string{"high", "medium", "low"}
+	prioNumRe         = regexp.MustCompile(`^[1-9]$`)
+	durRe             = regexp.MustCompile(`^\+(\d{1,4})([mh])$`)
+	spentRe           = regexp.MustCompile(`^(?:(\d{1,2})h)?(?:(\d{1,4})m)?$`)
 )
 
 // maxSpent caps a spent: duration.
 const maxSpent = 24 * time.Hour
 
-// Parse parses line relative to now in the calendar's timezone.
-func Parse(line string, now time.Time, cal dates.Calendar) (Result, error) {
+// Parse parses line relative to now in the calendar's timezone. priorities
+// are the priority values in order, which !1, !2… pick; empty means
+// DefaultPriorities.
+func Parse(line string, now time.Time, cal dates.Calendar, priorities []string) (Result, error) {
 	var (
 		res   = Result{Tags: []string{}}
 		title []string
+		seen  = map[string]bool{}
 	)
+	if len(priorities) == 0 {
+		priorities = DefaultPriorities
+	}
+	once := func(key string) error {
+		if seen[key] {
+			return fmt.Errorf("%s: given twice", key)
+		}
+		seen[key] = true
+		return nil
+	}
 	today := dates.On(now, cal.Loc)
 	words := strings.Fields(line)
 	addTag := func(t string) error {
@@ -72,15 +88,25 @@ func Parse(line string, now time.Time, cal dates.Calendar) (Result, error) {
 			err = addTag("project:" + w[1:])
 		case len(w) > 1 && w[0] == '!':
 			p := strings.ToLower(w[1:])
-			if m, ok := priorities[p]; ok {
-				p = m
+			if prioNumRe.MatchString(p) {
+				n := int(p[0] - '0')
+				if n > len(priorities) {
+					return Result{}, fmt.Errorf("!%d: there are only %d priorities", n, len(priorities))
+				}
+				p = priorities[n-1]
 			}
 			err = addTag("priority:" + p)
 		case strings.HasPrefix(lw, "due:"):
+			if err = once("due"); err != nil {
+				break
+			}
 			var d dates.Date
 			d, err = dates.ParseRelative(lw[4:], today, cal)
 			res.DueDate = d.String()
 		case strings.HasPrefix(lw, "remind:"):
+			if err = once("remind"); err != nil {
+				break
+			}
 			var t time.Time
 			var consumed bool
 			next := ""
@@ -93,6 +119,9 @@ func Parse(line string, now time.Time, cal dates.Calendar) (Result, error) {
 			}
 			res.RemindAt = &t
 		case strings.HasPrefix(lw, "spent:"):
+			if err = once("spent"); err != nil {
+				break
+			}
 			var consumed bool
 			next := ""
 			if i+1 < len(words) {
