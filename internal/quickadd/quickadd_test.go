@@ -33,7 +33,7 @@ func TestParse(t *testing.T) {
 		{"Fix !important things", "Fix things", []string{"priority:important"}, "", ""},
 	}
 	for _, tc := range cases {
-		r, err := Parse(tc.in, now, cal)
+		r, err := Parse(tc.in, now, cal, nil)
 		if err != nil {
 			t.Errorf("%q: %v", tc.in, err)
 			continue
@@ -50,8 +50,9 @@ func TestParse(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{"", "#only-tags", "x due:someday", "x #bad,tag",
-		"x spent:", "x spent:0m", "x spent:25h", "x spent:1.5h", "x spent:9:00", "x spent:1h 9:30"} {
-		if _, err := Parse(bad, now, cal); err == nil {
+		"x spent:", "x spent:0m", "x spent:25h", "x spent:1.5h", "x spent:9:00", "x spent:1h 9:30",
+		"x due:fri due:mon", "x remind:9:00 remind:+1h", "x spent:5m spent:10m", "x !4"} {
+		if _, err := Parse(bad, now, cal, nil); err == nil {
 			t.Errorf("%q: want error", bad)
 		}
 	}
@@ -70,7 +71,7 @@ func TestParseSpent(t *testing.T) {
 		{"spent:30m Call 11:00", "Call 11:00", "09:30", "10:00"},
 	}
 	for _, tc := range cases {
-		r, err := Parse(tc.in, now, cal)
+		r, err := Parse(tc.in, now, cal, nil)
 		if err != nil {
 			t.Errorf("%q: %v", tc.in, err)
 			continue
@@ -83,5 +84,20 @@ func TestParseSpent(t *testing.T) {
 		if r.Title != tc.title || from != tc.from || to != tc.to {
 			t.Errorf("%q = %q %s-%s, want %q %s-%s", tc.in, r.Title, from, to, tc.title, tc.from, tc.to)
 		}
+	}
+}
+
+func TestParsePriorityOrder(t *testing.T) {
+	cal := dates.Calendar{Loc: time.UTC}
+	now := time.Date(2026, 10, 21, 10, 0, 0, 0, time.UTC)
+	prios := []string{"urgent", "high", "normal", "low"}
+	for in, want := range map[string]string{"x !1": "priority:urgent", "x !4": "priority:low", "x !normal": "priority:normal"} {
+		r, err := Parse(in, now, cal, prios)
+		if err != nil || !slices.Equal(r.Tags, []string{want}) {
+			t.Errorf("%q = %v, %v; want %s", in, r.Tags, err, want)
+		}
+	}
+	if _, err := Parse("x !5", now, cal, prios); err == nil {
+		t.Error("!5 with 4 priorities: want error")
 	}
 }

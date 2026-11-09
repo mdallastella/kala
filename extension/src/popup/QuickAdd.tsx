@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { TargetedEvent } from 'preact';
 import { errorMessage, get, post, send } from '../lib/api';
 import { dateTimeLabel, dueLabel, duration, timeLabel } from '../lib/format';
-import { currentToken, searchQuery, tagColor } from '../lib/quickadd';
-import type { QuickParse, Tag, Task, TimeEntry } from '../lib/types';
+import { completeToken, currentToken, searchQuery, suggestions as suggest, tagColor } from '../lib/quickadd';
+import type { Namespace, QuickParse, Tag, Task, TimeEntry } from '../lib/types';
 
 interface Props {
   tags: Tag[];
@@ -14,6 +14,9 @@ interface Props {
 
 /** Open tasks most recently created or timed. */
 const recentQuery = 'is:open sort:-activity';
+
+/** Keep in step with TIMER_SPENT_ERROR in web/src/components/QuickPreview.tsx. */
+const timerSpentError = 'spent: logs time already spent and can’t be combined with a timer';
 
 /**
  * Port of web/src/components/QuickAdd.tsx: Enter adds, Shift+Enter also starts a timer.
@@ -34,6 +37,7 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   const [pick, setPick] = useState(-1);
   const [recent, setRecent] = useState<Task[]>([]);
   const [timers, setTimers] = useState<TimeEntry[]>([]);
+  const [nss, setNss] = useState<Namespace[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const colors = useMemo(() => new Map(tags.map((t) => [t.name, t.color])), [tags]);
 
@@ -48,7 +52,10 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   }, [text, setupError]);
   const empty = !text.trim();
   const preview = empty ? null : (parsed.preview ?? null);
-  const error = setupError || submitError || (!empty && parsed.text === text ? (parsed.error ?? '') : '');
+  const parseError = !empty && parsed.text === text ? (parsed.error ?? '') : '';
+  // Shift+Enter starts a timer, which can't take spent:; say so before it is pressed.
+  const spentError = shift && pick < 0 && preview?.spent && parsed.text === text ? timerSpentError : '';
+  const error = setupError || submitError || parseError || spentError;
 
   // Search by the parsed title so tag, due and remind tokens don't narrow the matches.
   const query = !empty && !setupError && preview ? searchQuery(preview.title) : null;
@@ -66,6 +73,9 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
     get<TimeEntry[]>('/timers/active')
       .then(setTimers)
       .catch(() => setTimers([]));
+    get<Namespace[]>('/namespaces')
+      .then(setNss)
+      .catch(() => setNss([]));
   }, [setupError]);
   const running = useMemo(() => new Set(timers.map((e) => e.task_id)), [timers]);
   // Previous matches stay up while the next search runs, to avoid flicker.
@@ -75,15 +85,10 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   useEffect(() => setPick(-1), [found]);
 
   const token = currentToken(text);
-  const suggestions = useMemo(() => {
-    if (!token) return [];
-    const names = tags.map((t) => t.name);
-    const pool = token.prefix === '@' ? names.filter((n) => n.startsWith('project:')).map((n) => n.slice(8)) : names;
-    return pool.filter((n) => n.includes(token.partial) && n !== token.partial).slice(0, 8);
-  }, [token, tags]);
+  const suggestions = useMemo(() => suggest(token, tags.map((t) => t.name), nss), [token, tags, nss]);
 
   const complete = (value: string) => {
-    setText(text.replace(/([#@])(\S*)$/, `$1${value} `));
+    setText(completeToken(text, value));
     setSel(0);
   };
 
@@ -92,7 +97,7 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
       void send({ type: 'options' });
       return;
     }
-    if (!text.trim() || error || busy) return;
+    if (!text.trim() || setupError || submitError || parseError || busy || (timer && preview?.spent)) return;
     setBusy(true);
     try {
       const t = timer ? await post<Task>('/timers/start-new', { quick: text }) : await post<Task>('/tasks', { quick: text });

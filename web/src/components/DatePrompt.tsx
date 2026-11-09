@@ -50,10 +50,11 @@ export function DatePrompt({ tasks, kind, onClose, onError }: Props) {
 
   const save = async () => {
     try {
-      if (kind === 'due' && tasks.length > 1) {
-        await bulk.mutateAsync({ ids: tasks.map((t) => t.id), op: 'set_due', due_date: value });
-      } else {
-        for (const t of tasks) await update.mutateAsync({ id: t.id, [kind === 'due' ? 'due_date' : 'remind_at']: value });
+      const ids = tasks.map((t) => t.id);
+      if (ids.length > 1) {
+        await bulk.mutateAsync(kind === 'due' ? { ids, op: 'set_due', due_date: value } : { ids, op: 'set_remind', remind_at: value });
+      } else if (ids.length === 1) {
+        await update.mutateAsync({ id: ids[0], [kind === 'due' ? 'due_date' : 'remind_at']: value });
       }
       onClose();
     } catch (e) {

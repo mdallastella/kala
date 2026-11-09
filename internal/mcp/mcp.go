@@ -30,12 +30,16 @@ Filter language (search_tasks, time_report): space-separated terms, all must mat
   sort:priority,due,-created
   Prefix a term with - to negate it.
 
-Quick-add syntax (create_task.quick, start_timer_new_task.quick):
+Quick-add syntax (create_task.quick, update_task.quick, start_timer_new_task.quick):
   Write report #client:acme @kala !high due:fri remind:thu 9:00
-  #tag, @project, !priority (or !1-!3), due:<date>, remind:<date> [HH:MM] | remind:+30m
+  #tag, @project, !priority (or !1, !2… in the priority namespace's order),
+  due:<date>, remind:<date> [HH:MM] | remind:HH:MM | remind:+30m | remind:+2h
   spent:<45m|2h|1h30m> [HH:MM] logs time already spent, ending now or starting at HH:MM today
   (create_task only).
-  Dates: today, tomorrow, mon..sun, +3d, +2w, nwd (next working day), YYYY-MM-DD.`
+  due:, remind: and spent: may appear once each. On update_task the line's words replace the
+  title, its tags are added and its dates are set.
+  Dates: today, tomorrow, yesterday, mon..sun (today or the next one), +3d, +2w,
+  nwd (next working day), YYYY-MM-DD.`
 
 // Handler returns the Streamable HTTP handler. Requests must already carry
 // the authenticated user in their context.
@@ -90,7 +94,8 @@ type (
 	}
 	updateArgs struct {
 		ID       int64   `json:"id" jsonschema:"task id"`
-		Title    *string `json:"title,omitempty"`
+		Quick    string  `json:"quick,omitempty" jsonschema:"quick-add line: its words become the title, its tags are added, its dates set"`
+		Title    *string `json:"title,omitempty" jsonschema:"title (overrides the one parsed from quick)"`
 		Notes    *string `json:"notes,omitempty" jsonschema:"Markdown notes (replaces existing)"`
 		DueDate  *string `json:"due_date,omitempty" jsonschema:"YYYY-MM-DD, or empty string to clear"`
 		RemindAt *string `json:"remind_at,omitempty" jsonschema:"RFC 3339 instant, or empty string to clear"`
@@ -181,9 +186,9 @@ func register(srv *mcp.Server, t *tools) {
 			in.RemindAt = ra
 			return result(t.svc.CreateTask(ctx, t.uid, in))
 		})
-	mcp.AddTool(srv, &mcp.Tool{Name: "update_task", Description: "Update a task's title, notes, due date or reminder. Use add_tags/remove_tags for tags."},
+	mcp.AddTool(srv, &mcp.Tool{Name: "update_task", Description: "Update a task's title, notes, due date or reminder, directly or from a quick-add line. Use add_tags/remove_tags to edit tags."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, a updateArgs) (*mcp.CallToolResult, any, error) {
-			var p service.TaskPatch
+			p := service.TaskPatch{Quick: a.Quick}
 			if a.Title != nil {
 				p.Title = service.Some(*a.Title)
 			}

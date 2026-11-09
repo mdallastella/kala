@@ -536,3 +536,51 @@ func TestQuickAddSpent(t *testing.T) {
 		t.Errorf("spent ending in the future: want invalid, got %v", err)
 	}
 }
+
+func TestQuickPreviewAndUpdate(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "q@example.com")
+
+	// The preview applies the namespace rules, like saving does.
+	for _, bad := range []string{"x !urgent", "x #status:bogus", "x !high !low"} {
+		if _, err := s.ParseQuick(ctx, uid, bad); err == nil {
+			t.Errorf("ParseQuick(%q): want error", bad)
+		}
+	}
+	if p, err := s.ParseQuick(ctx, uid, "x !2"); err != nil || !slices.Equal(p.Tags, []string{"priority:medium"}) {
+		t.Errorf("!2 = %v, %v", p, err)
+	}
+
+	task := mustCreate(t, s, uid, service.TaskInput{Quick: "Draft #a !low"})
+	got, err := s.UpdateTask(ctx, uid, task.ID, service.TaskPatch{Quick: "Final draft #b !high due:2026-11-02 remind:+30m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Final draft" || !slices.Equal(got.Tags, []string{"a", "b", "priority:high", "status:open"}) ||
+		got.DueDate == nil || *got.DueDate != "2026-11-02" || got.RemindAt == nil {
+		t.Errorf("quick update = %+v", got)
+	}
+	// Fields set explicitly win over the quick line; spent: is for new tasks only.
+	got, err = s.UpdateTask(ctx, uid, task.ID, service.TaskPatch{Quick: "Ignored due:2026-12-01", Title: service.Some("Kept")})
+	if err != nil || got.Title != "Kept" || *got.DueDate != "2026-12-01" {
+		t.Errorf("explicit title = %+v, %v", got, err)
+	}
+	if _, err := s.UpdateTask(ctx, uid, task.ID, service.TaskPatch{Quick: "x spent:30m"}); err == nil {
+		t.Error("spent on update: want error")
+	}
+
+	other := mustCreate(t, s, uid, service.TaskInput{Title: "Other"})
+	at := start.Add(2 * time.Hour)
+	if err := s.Bulk(ctx, uid, service.BulkInput{IDs: []int64{task.ID, other.ID}, Op: service.BulkSetRemind, RemindAt: service.Some(at)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{task.ID, other.ID} {
+		if tk, _ := s.Task(ctx, uid, id); tk.RemindAt == nil || !tk.RemindAt.Equal(at) {
+			t.Errorf("task %d remind = %v", id, tk.RemindAt)
+		}
+	}
+	if err := s.Bulk(ctx, uid, service.BulkInput{IDs: []int64{task.ID}, Op: service.BulkSetRemind}); err == nil {
+		t.Error("set_remind without remind_at: want error")
+	}
+}

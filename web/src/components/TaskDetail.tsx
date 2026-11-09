@@ -28,6 +28,7 @@ import { useActions, useEntries, useNamespaces, useTask } from '../api/hooks';
 import { clock, dateTimeLabel, dueLabel, duration, fullDateTime, isoDate, isOverdue, timeLabel } from '../lib/format';
 import { namespaceValues, priorityOf, PRIORITY_COLORS, statusOf } from '../lib/tags';
 import { TagChip } from './TagChip';
+import { QuickPreview, useQuickParse } from './QuickPreview';
 import { useNow } from './TimerStrip';
 import { useUi } from './ui';
 
@@ -60,6 +61,8 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
   const titleRef = useRef<HTMLInputElement>(null);
   const until = new Date(now + 86400000).toISOString().slice(0, 13) + ':00:00Z';
   const { data: entries = [] } = useEntries(FAR_PAST, until, id);
+  // The title speaks the quick-add syntax, as when the task was added.
+  const { preview: titleParse, error: titleError } = useQuickParse(titleDraft != null && titleDraft !== task?.title ? titleDraft : null);
 
   useEffect(() => {
     if (focusTitle > 0) titleRef.current?.focus();
@@ -89,7 +92,7 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
           value={title}
           onChange={(e) => setTitleDraft(e.target.value)}
           onBlur={() => {
-            if (title.trim() && title !== task.title) save({ id, title });
+            if (title.trim() && title !== task.title) save({ id, quick: title });
             setTitleDraft(null);
           }}
           onKeyDown={(e) => {
@@ -99,7 +102,17 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
             }
             escBlur(e);
           }}
-          slotProps={{ input: { disableUnderline: true, sx: { fontSize: 18, fontWeight: 600 } } }}
+          error={!!titleError}
+          helperText={
+            titleError ||
+            (titleParse && (titleParse.tags.length > 0 || titleParse.due_date || titleParse.remind_at || titleParse.spent) ? (
+              <QuickPreview preview={titleParse} showTitle={false} />
+            ) : undefined)
+          }
+          slotProps={{
+            input: { disableUnderline: true, sx: { fontSize: 18, fontWeight: 600 } },
+            formHelperText: { component: 'div' },
+          }}
         />
         <Tooltip title="Close panel (Esc)">
           <IconButton size="small" onClick={onClose}>

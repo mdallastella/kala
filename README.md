@@ -102,10 +102,22 @@ Press `?` in the app for the full, context-aware list.
 Write report #client:acme @kala !high due:fri remind:thu 9:00
 ```
 
-`#tag`, `@project` (→ `project:…`), `!high` or `!1`–`!3`, `due:<date>`, `remind:<date> [HH:MM]`, `remind:14:30`, `remind:+30m`.
+`#tag`, `@project` (→ `project:…`), `!high` or `!1`, `!2`… (the priority values in their configured order, like the
+`1`–`3` keys), `due:<date>`, `remind:<date> [HH:MM]` (a date alone means the start of that working day),
+`remind:14:30` (today, or tomorrow if already past), `remind:+30m`, `remind:+2h`.
 `spent:<duration> [HH:MM]` logs time already spent on the new task (`45m`, `2h`, `1h30m`, up to 24h), ending now
 or starting at `HH:MM` today: `Call with Bob @acme spent:45m 14:00`. It can't be combined with starting a timer.
-Dates: `today`, `tomorrow`, `mon`…`sun`, `+3d`, `+2w`, `nwd` (next working day), `YYYY-MM-DD`.
+`due:`, `remind:` and `spent:` may each appear once. Tags are checked against the namespaces while you type.
+Dates: `today`, `tomorrow`, `yesterday`, `mon`…`sun` (today or the next one), `+3d`, `+2w`, `nwd` (next working day),
+`YYYY-MM-DD`. Reminders are not checked against the clock: `remind:today 8:00` at 10:00 fires right away.
+
+In quick add, `Enter` adds the task and `Shift+Enter` adds it and starts a timer (`Q` opens quick add in timer
+mode). `Tab` completes `#tags` (including unused namespace values such as `#status:delegated`), `@projects` and
+`!priorities`.
+
+Editing a task's title speaks the same syntax: `Fix login #bug !high due:fri` renames the task to "Fix login",
+adds the tags and sets the due date. Tags are only added; remove them from the tag list. `spent:` only works
+when adding a task.
 
 ### Filter language
 
@@ -151,7 +163,9 @@ Change the shortcut at `chrome://extensions/shortcuts` ("Activate the extension"
 
 ## REST API
 
-JSON under `/api/v1`. Errors are `{"error": {"code", "message", "details?"}}`. Authenticate with
+JSON under `/api/v1`. `POST /tasks` and `PATCH /tasks/{id}` take a `quick` line alongside the explicit fields
+(explicit fields win); clear `due_date` / `remind_at` with `null`. `POST /tasks/bulk` ops: `add_tags`,
+`remove_tags`, `set_due`, `set_remind`, `close`, `reopen`, `delete`, `restore`. Errors are `{"error": {"code", "message", "details?"}}`. Authenticate with
 `Authorization: Bearer <access JWT | personal access token>`. Access JWTs last 15 minutes and are
 renewed with `POST /auth/refresh`, using the HttpOnly refresh cookie (rotated on every use; reusing
 a token revokes the session family). See `internal/api/routes.go` for the full route list.

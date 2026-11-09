@@ -69,6 +69,8 @@ export const useReport = (from: string, to: string, group: string, q = '') =>
 export const parseQuick = (quick: string) => post<QuickParse>('/tasks/parse', { quick });
 
 export interface TaskPatch {
+  /** Quick-add line: its words replace the title, its tags are added and its dates set. */
+  quick?: string;
   title?: string;
   notes?: string;
   due_date?: string | null;
@@ -81,9 +83,10 @@ export interface TaskPatch {
 
 export interface BulkInput {
   ids: number[];
-  op: 'add_tags' | 'remove_tags' | 'set_due' | 'close' | 'reopen' | 'delete' | 'restore';
+  op: 'add_tags' | 'remove_tags' | 'set_due' | 'set_remind' | 'close' | 'reopen' | 'delete' | 'restore';
   tags?: string[];
   due_date?: string | null;
+  remind_at?: string | null;
 }
 
 /** Mutations invalidate locally as well, in case the event stream is down. */
