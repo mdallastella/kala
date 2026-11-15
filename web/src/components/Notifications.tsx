@@ -19,7 +19,7 @@ import { get, post, streamEvents } from '../api/client';
 import { invalidateKinds, useActions } from '../api/hooks';
 import type { Briefing, Task, Wrapup } from '../api/types';
 import { useHotkeys } from '../keys/hotkeys';
-import { clock, dueLabel, isoDate, addDays, timeLabel } from '../lib/format';
+import { clock, dueLabel, isoDate, addDays, timeLabel, todayDate } from '../lib/format';
 import { TagChip } from './TagChip';
 import { chipTags } from '../lib/tags';
 import { tasksPath } from '../lib/useCurrentQuery';
@@ -64,6 +64,7 @@ export function Notifications({ onConnected }: { onConnected: (ok: boolean) => v
           // Catch up on anything missed while disconnected.
           invalidateKinds(qc, ['tasks', 'tags', 'timers', 'namespaces']);
         },
+        () => onConnected(false),
       ),
     [qc, onConnected],
   );
@@ -192,7 +193,7 @@ function DigestDialog({ kind, onClose }: { kind: Digest; onClose: () => void }) 
   const act = (patch: { closed?: boolean; due_date?: string }) => {
     if (current) update.mutate({ id: current.id, ...patch });
   };
-  const tomorrow = isoDate(addDays(new Date(), 1));
+  const tomorrow = isoDate(addDays(todayDate(), 1));
 
   useHotkeys([
     { keys: 'j', description: 'Next task', group: 'Digest', allowInDialog: true, run: () => setFocus((f) => Math.min(f + 1, actionable.length - 1)) },
@@ -257,7 +258,7 @@ function DigestDialog({ kind, onClose }: { kind: Digest; onClose: () => void }) 
       </DialogContent>
       <DialogActions sx={{ justifyContent: 'space-between' }}>
         <Typography variant="caption" color="text.secondary" sx={{ pl: 1 }}>
-          j/k move · x close · t tomorrow · n next working day · Enter open
+          j/k move · x close · t tomorrow{kind === 'wrapup' ? ' · n next working day' : ''} · Enter open
         </Typography>
         <Button onClick={close}>Done</Button>
       </DialogActions>

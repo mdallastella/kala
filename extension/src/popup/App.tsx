@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ApiError, get, send } from '../lib/api';
-import type { CachedTags } from '../lib/messages';
-import type { Tag } from '../lib/types';
+import { setZone } from '../lib/format';
+import type { CachedTags, CachedZone } from '../lib/messages';
+import type { Tag, User } from '../lib/types';
 import { QuickAdd } from './QuickAdd';
 
 interface Props {
@@ -19,6 +20,8 @@ export function App({ onClose }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [setupError, setSetupError] = useState('');
   const [toast, setToast] = useState('');
+  // The profile timezone decides which day "today" is in the preview's labels.
+  const [, setProfileZone] = useState<string>();
 
   // Tags feed the #/@ completion: cached ones right away, then fresh ones.
   useEffect(() => {
@@ -26,6 +29,14 @@ export function App({ onClose }: Props) {
     get<Tag[]>('/tags')
       .then(setTags)
       .catch((e: unknown) => setSetupError(setupMessage(e)));
+    const applyZone = (tz: string) => {
+      setZone(tz);
+      setProfileZone(tz); // re-render with the new days
+    };
+    void send<CachedZone>({ type: 'cached-zone' }).then((tz) => tz && applyZone(tz));
+    get<User>('/me')
+      .then((me) => applyZone(me.timezone))
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {

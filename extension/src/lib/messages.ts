@@ -5,7 +5,8 @@ export type Request =
   | { type: 'api'; method: string; path: string; body?: unknown }
   | { type: 'options' }
   | { type: 'open-task'; id: number }
-  | { type: 'cached-tags' };
+  | { type: 'cached-tags' }
+  | { type: 'cached-zone' };
 
 export interface ApiResponse {
   ok: boolean;
@@ -15,3 +16,6 @@ export interface ApiResponse {
 }
 
 export type CachedTags = Tag[] | null;
+
+/** The profile timezone last seen from the server. */
+export type CachedZone = string | null;

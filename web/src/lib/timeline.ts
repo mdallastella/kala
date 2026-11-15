@@ -1,17 +1,18 @@
 import type { TimeEntry, WorkingDay } from '../api/types';
-import { addDays } from './format';
+import { addDays, startOfDay } from './format';
 
 /** The part of a time entry that falls on one day of the week. */
 export interface Segment {
   entry: TimeEntry;
   day: number; // 0 = Monday
-  start: number; // minutes since local midnight
+  start: number; // minutes since the day began
   end: number;
 }
 
 /**
  * Splits entries into per-day segments for the week starting at weekStart
- * (local midnight of a Monday). Running entries end at now.
+ * (the calendar day of a Monday), with days as the profile timezone has
+ * them. Running entries end at now.
  */
 export function segments(entries: TimeEntry[], weekStart: Date, now: number): Segment[] {
   const out: Segment[] = [];
@@ -19,8 +20,8 @@ export function segments(entries: TimeEntry[], weekStart: Date, now: number): Se
     const from = new Date(e.started_at).getTime();
     const to = e.stopped_at ? new Date(e.stopped_at).getTime() : now;
     for (let day = 0; day < 7; day++) {
-      const d0 = addDays(weekStart, day).getTime();
-      const d1 = addDays(weekStart, day + 1).getTime();
+      const d0 = startOfDay(addDays(weekStart, day)).getTime();
+      const d1 = startOfDay(addDays(weekStart, day + 1)).getTime();
       const s = Math.max(from, d0);
       const t = Math.min(to, d1);
       if (s < t) out.push({ entry: e, day, start: (s - d0) / 60000, end: (t - d0) / 60000 });

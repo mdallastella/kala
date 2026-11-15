@@ -20,11 +20,12 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router';
-import { useActions, useTags } from '../api/hooks';
+import { useActions, useMe, useTags } from '../api/hooks';
 import type { Task } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { HelpDialog } from '../keys/HelpDialog';
 import { useHotkeys, type Binding } from '../keys/hotkeys';
+import { setZone } from '../lib/format';
 import { projectFromQuery } from '../lib/tags';
 import { tasksPath, useCurrentQuery } from '../lib/useCurrentQuery';
 import { CommandPalette, type Command } from './CommandPalette';
@@ -50,6 +51,9 @@ export function Shell() {
   const { mode, setMode, systemMode } = useColorScheme();
   const dark = (mode === 'system' ? systemMode : mode) === 'dark';
   const { data: tags = [] } = useTags();
+  const { data: me } = useMe();
+  // Days are the profile timezone's; set before the pages below render their dates.
+  setZone((me ?? user)?.timezone);
   const { stopAll } = useActions();
   useTimerFavicon();
 

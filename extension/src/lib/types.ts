@@ -3,6 +3,7 @@
 export interface User {
   id: number;
   email: string;
+  timezone: string;
 }
 
 export interface Task {

@@ -9,7 +9,7 @@ import type { Task } from '../api/types';
 import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
 import { dragTasks, useTaskDrop } from '../lib/dnd';
-import { addDays, isoDate, monthGrid } from '../lib/format';
+import { addDays, isoDate, monthGrid, todayDate } from '../lib/format';
 import { PRIORITY_COLORS } from '../lib/tags';
 import { tasksPath } from '../lib/useCurrentQuery';
 
@@ -121,7 +121,7 @@ export function CalendarPage() {
   const [params] = useSearchParams();
   const q = params.get('q') ?? 'is:open';
   const navigate = useNavigate();
-  const [focus, setFocus] = useState(() => new Date());
+  const [focus, setFocus] = useState(() => todayDate());
   const days = monthGrid(focus);
   const first = isoDate(days[0]);
   const last = isoDate(days[days.length - 1]);
@@ -130,7 +130,7 @@ export function CalendarPage() {
   for (const t of tasks) if (t.due_date) byDay.set(t.due_date, [...(byDay.get(t.due_date) ?? []), t]);
 
   const month = focus.getMonth();
-  const today = isoDate(new Date());
+  const today = isoDate(todayDate());
   const focusDay = isoDate(focus);
   const shiftMonth = (n: number) => setFocus((f) => new Date(f.getFullYear(), f.getMonth() + n, Math.min(f.getDate(), 28)));
   const move = (n: number) => setFocus((f) => addDays(f, n));
@@ -139,7 +139,7 @@ export function CalendarPage() {
   useHotkeys([
     { keys: '[', description: 'Previous month', group: g, run: () => shiftMonth(-1) },
     { keys: ']', description: 'Next month', group: g, run: () => shiftMonth(1) },
-    { keys: '.', description: 'Today', group: g, run: () => setFocus(new Date()) },
+    { keys: '.', description: 'Today', group: g, run: () => setFocus(todayDate()) },
     { keys: 'left', description: 'Previous day', group: g, run: () => move(-1) },
     { keys: 'right', description: 'Next day', group: g, run: () => move(1) },
     { keys: 'up', description: 'Previous week', group: g, run: () => move(-7) },
@@ -167,7 +167,7 @@ export function CalendarPage() {
               <ChevronRightIcon />
             </IconButton>
           </Tooltip>
-          <Button size="small" onClick={() => setFocus(new Date())}>
+          <Button size="small" onClick={() => setFocus(todayDate())}>
             Today (.)
           </Button>
           <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace', ml: 1 }} noWrap>
