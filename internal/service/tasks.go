@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -527,6 +528,10 @@ func (s *Service) UpdateTask(ctx context.Context, userID, id int64, p TaskPatch)
 }
 
 func (s *Service) updateTask(ctx context.Context, tx *sql.Tx, userID, id int64, p TaskPatch) error {
+	// Only the due date and the reminder can be cleared with null.
+	if err := cmp.Or(p.Title.notNull("title"), p.Notes.notNull("notes"), p.Tags.notNull("tags"), p.Closed.notNull("closed")); err != nil {
+		return err
+	}
 	if _, err := s.getTask(ctx, tx, userID, id, false); err != nil {
 		return err
 	}

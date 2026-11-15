@@ -251,6 +251,9 @@ func (s *Service) CreateTimeEntry(ctx context.Context, userID int64, in EntryInp
 	if !in.StartedAt.Set || in.StartedAt.Null || !in.StoppedAt.Set || in.StoppedAt.Null {
 		return nil, errf(CodeInvalid, "started_at and stopped_at are required")
 	}
+	if err := in.Note.notNull("note"); err != nil {
+		return nil, err
+	}
 	if !in.StoppedAt.Value.After(in.StartedAt.Value) {
 		return nil, errf(CodeInvalid, "stopped_at must be after started_at")
 	}
@@ -273,14 +276,14 @@ func (s *Service) UpdateTimeEntry(ctx context.Context, userID, id int64, in Entr
 	if err != nil {
 		return nil, err
 	}
+	if err := cmp.Or(in.StartedAt.notNull("started_at"), in.StoppedAt.notNull("stopped_at"), in.Note.notNull("note")); err != nil {
+		return nil, err
+	}
 	start, stop, note := cur.StartedAt, cur.StoppedAt, cur.Note
-	if in.StartedAt.Set && !in.StartedAt.Null {
+	if in.StartedAt.Set {
 		start = in.StartedAt.Value
 	}
 	if in.StoppedAt.Set {
-		if in.StoppedAt.Null {
-			return nil, errf(CodeInvalid, "stopped_at cannot be cleared")
-		}
 		stop = &in.StoppedAt.Value
 	}
 	if in.Note.Set {

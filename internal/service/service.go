@@ -88,6 +88,14 @@ func (o *Optional[T]) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &o.Value)
 }
 
+// notNull rejects an explicit null for a field that cannot be cleared.
+func (o Optional[T]) notNull(field string) error {
+	if o.Null {
+		return errf(CodeInvalid, "%s cannot be null", field)
+	}
+	return nil
+}
+
 // Some returns a set Optional.
 func Some[T any](v T) Optional[T] { return Optional[T]{Set: true, Value: v} }
 

@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -140,6 +141,60 @@ func TestNamespaceNames(t *testing.T) {
 	for _, name := range []string{"Due", "a:b", "two words", ""} {
 		if _, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: name}); !service.IsCode(err, service.CodeInvalid) {
 			t.Errorf("namespace %q: want invalid, got %v", name, err)
+		}
+	}
+}
+
+func TestNullFields(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	task := mustCreate(t, s, uid, service.TaskInput{Title: "t", Notes: "n", Tags: []string{"status:closed", "x"}, DueDate: new("2026-10-30")})
+
+	// null only clears the fields that can be empty.
+	for _, body := range []string{`{"closed": null}`, `{"tags": null}`, `{"title": null}`, `{"notes": null}`} {
+		var p service.TaskPatch
+		if err := json.Unmarshal([]byte(body), &p); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.UpdateTask(ctx, uid, task.ID, p); !service.IsCode(err, service.CodeInvalid) {
+			t.Errorf("%s: want invalid, got %v", body, err)
+		}
+	}
+	got, err := s.Task(ctx, uid, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ClosedAt == nil || !slices.Equal(got.Tags, []string{"status:closed", "x"}) || got.Notes != "n" {
+		t.Fatalf("rejected patches changed the task: %+v", got)
+	}
+	var p service.TaskPatch
+	if err := json.Unmarshal([]byte(`{"due_date": null, "remind_at": null}`), &p); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = s.UpdateTask(ctx, uid, task.ID, p); err != nil || got.DueDate != nil {
+		t.Fatalf("clearing the due date: %v %v", got, err)
+	}
+
+	var m service.TagMeta
+	if err := json.Unmarshal([]byte(`{"name": "x", "pinned": null}`), &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetTagMeta(ctx, uid, m); !service.IsCode(err, service.CodeInvalid) {
+		t.Errorf("pinned null: want invalid, got %v", err)
+	}
+
+	entry, err := s.CreateTimeEntry(ctx, uid, service.EntryInput{TaskID: task.ID, StartedAt: service.Some(start.Add(-time.Hour)), StoppedAt: service.Some(start)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{`{"started_at": null}`, `{"note": null}`, `{"stopped_at": null}`} {
+		var in service.EntryInput
+		if err := json.Unmarshal([]byte(body), &in); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.UpdateTimeEntry(ctx, uid, entry.ID, in); !service.IsCode(err, service.CodeInvalid) {
+			t.Errorf("entry %s: want invalid, got %v", body, err)
 		}
 	}
 }

@@ -66,6 +66,9 @@ func (s *Service) SetTagMeta(ctx context.Context, userID int64, m TagMeta) (*Tag
 	if err != nil {
 		return nil, errf(CodeInvalid, "%s", err.Error())
 	}
+	if err := cmp.Or(m.Pinned.notNull("pinned"), m.Position.notNull("position")); err != nil {
+		return nil, err
+	}
 	if m.Color.Set && !m.Color.Null && !validColor(m.Color.Value) {
 		return nil, errf(CodeInvalid, "color must be #rrggbb")
 	}
