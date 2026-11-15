@@ -19,7 +19,9 @@ const instructions = `Kala is a task manager where projects, status and priority
 
 Tags are colon-separated paths: project:kala:api, status:open, priority:high, client:acme.
 Namespaces such as status and priority are exclusive (one value per task); adding
-status:closed replaces status:open and closes the task.
+status:closed replaces status:open and closes the task. The value is the first segment
+after the namespace (client:acme:ops counts as acme). An exclusive namespace accepts only
+its listed values, or any value when none are listed (see list_namespaces).
 
 Filter language (search_tasks, time_report): space-separated terms, all must match.
   project:kala        tag or any descendant      -project:     no project tag (inbox)

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
 import { ago, clock, dateOf, dueLabel, duration, fullDateTime, isoDate, isOverdue, monthGrid, parseClock, setZone, startOfDay, timeLabel, todayDate } from './format';
-import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
+import { buildTree, chipTags, projectFromQuery, tagColor, withNamespaceValues } from './tags';
 import { completeToken, currentToken, suggestions } from './quickadd';
 import { hourRange, segments } from './timeline';
 
@@ -16,6 +16,16 @@ describe('tags', () => {
     const kala = project.children.find((n) => n.label === 'kala')!;
     expect(kala.open).toBe(3);
     expect(kala.children[0].name).toBe('project:kala:api');
+  });
+
+  it('adds unused namespace values and orders by value list', () => {
+    const [root] = buildTree([tag('status:closed', 1), tag('status:zzz', 1), tag('status:open', 2)]);
+    const node = withNamespaceValues(root, { name: 'status', values: [{ value: 'open' }, { value: 'pending' }, { value: 'closed' }] });
+    expect(node.children.map((c) => c.label)).toEqual(['open', 'pending', 'closed', 'zzz']);
+    expect(node.children[1].tag).toBeUndefined();
+    expect(node.children[1].open).toBe(0);
+    expect(root.children).toHaveLength(3);
+    expect(withNamespaceValues(undefined, { name: 'client', values: [{ value: 'fimi' }] }).children[0].name).toBe('client:fimi');
   });
 
   it('inherits colors from ancestors', () => {

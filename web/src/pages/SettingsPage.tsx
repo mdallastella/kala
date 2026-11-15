@@ -205,7 +205,7 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
   };
   const save = () =>
     saveNamespace.mutate(
-      { id: ns.id, name, exclusive, default_value: exclusive && def ? def : undefined, values },
+      { id: ns.id, name, exclusive, default_value: exclusive && def && values.some((v) => v.value === def) ? def : undefined, values },
       {
         onSuccess: onClose,
         onError: (e) => {
@@ -227,6 +227,11 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
             <Typography variant="overline" color="text.secondary">
               Values (in sort order)
             </Typography>
+            {exclusive && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                Leave empty to allow any value.
+              </Typography>
+            )}
             {values.map((v, i) => (
               <Stack key={v.value} direction="row" sx={{ alignItems: 'center' }}>
                 <Typography sx={{ flex: 1 }}>{v.value}</Typography>
@@ -259,7 +264,7 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
               sx={{ mt: 1 }}
             />
           </Box>
-          {exclusive && (
+          {exclusive && values.length > 0 && (
             <TextField select label="Default value for new tasks" value={def} onChange={(e) => setDef(e.target.value)}>
               <MenuItem value="">(none)</MenuItem>
               {values.map((v) => (
