@@ -440,8 +440,8 @@ func (s *Server) activeTimers(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) entryFilter(r *http.Request) (service.EntryFilter, error) {
 	q := r.URL.Query()
-	now := s.svc.Now()
-	f := service.EntryFilter{From: now.AddDate(0, 0, -7), To: now.Add(24 * time.Hour), Query: q.Get("q")}
+	f := service.EntryFilter{Query: q.Get("q")}
+	f.From, f.To = service.DefaultEntryRange(s.svc.Now())
 	for name, dst := range map[string]*time.Time{"from": &f.From, "to": &f.To} {
 		if v := q.Get(name); v != "" {
 			t, err := time.Parse(time.RFC3339, v)

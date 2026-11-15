@@ -65,7 +65,7 @@ func Compile(q string, env Env) (*Query, error) {
 		sort  = DefaultSort
 	)
 	for _, tok := range toks {
-		neg := false
+		neg := tok.neg
 		text := tok.text
 		if !tok.quoted && len(text) > 1 && text[0] == '-' {
 			neg = true
@@ -122,6 +122,8 @@ func Compile(q string, env Env) (*Query, error) {
 type token struct {
 	text   string
 	quoted bool
+	// neg marks quoted text written as -"…".
+	neg bool
 }
 
 func tokenize(q string) ([]token, error) {
@@ -129,20 +131,21 @@ func tokenize(q string) ([]token, error) {
 		out []token
 		cur strings.Builder
 		inQ bool
+		neg bool
 	)
 	flush := func(quoted bool) {
-		if cur.Len() > 0 || quoted {
-			if s := cur.String(); s != "" {
-				out = append(out, token{text: s, quoted: quoted})
-			}
-			cur.Reset()
+		if s := cur.String(); s != "" {
+			out = append(out, token{text: s, quoted: quoted, neg: quoted && neg})
 		}
+		cur.Reset()
 	}
 	for _, r := range q {
 		switch {
 		case r == '"':
 			if inQ {
 				flush(true)
+			} else if neg = cur.String() == "-"; neg {
+				cur.Reset()
 			} else {
 				flush(false)
 			}

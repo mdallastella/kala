@@ -50,7 +50,7 @@ func Handler(svc *service.Service) http.Handler {
 		if uid == 0 {
 			return nil
 		}
-		srv := mcp.NewServer(&mcp.Implementation{Name: "kala", Version: "1.0.0"},
+		srv := mcp.NewServer(&mcp.Implementation{Name: "kala", Version: "0.1.0"},
 			&mcp.ServerOptions{Instructions: instructions, SchemaCache: cache})
 		register(srv, &tools{svc: svc, uid: uid})
 		return srv
@@ -112,7 +112,7 @@ type (
 	}
 	rangeArgs struct {
 		From   string `json:"from,omitempty" jsonschema:"RFC 3339 start (default 7 days ago)"`
-		To     string `json:"to,omitempty" jsonschema:"RFC 3339 end (default now)"`
+		To     string `json:"to,omitempty" jsonschema:"RFC 3339 end (default 24 hours from now)"`
 		TaskID int64  `json:"task_id,omitempty"`
 		Query  string `json:"query,omitempty" jsonschema:"filter expression applied to the entries' tasks"`
 	}
@@ -129,7 +129,8 @@ type (
 )
 
 func (a rangeArgs) filter(now time.Time) (service.EntryFilter, error) {
-	f := service.EntryFilter{From: now.AddDate(0, 0, -7), To: now, TaskID: a.TaskID, Query: a.Query}
+	f := service.EntryFilter{TaskID: a.TaskID, Query: a.Query}
+	f.From, f.To = service.DefaultEntryRange(now)
 	var err error
 	if a.From != "" {
 		if f.From, err = time.Parse(time.RFC3339, a.From); err != nil {

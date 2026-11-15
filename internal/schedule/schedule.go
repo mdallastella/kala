@@ -17,6 +17,20 @@ import (
 // Interval is how often the scheduler checks for due notifications.
 const Interval = 30 * time.Second
 
+// ReminderRepeat is how long after a push an unacknowledged reminder is
+// pushed again.
+const ReminderRepeat = 24 * time.Hour
+
+// retention is how long the scheduler remembers what it pushed; it must
+// exceed ReminderRepeat.
+const retention = 48 * time.Hour
+
+// sentReminder is one pushed reminder.
+type sentReminder struct {
+	remindAt time.Time
+	pushedAt time.Time
+}
+
 // Scheduler evaluates reminders and digests for users with open clients.
 type Scheduler struct {
 	svc *service.Service
@@ -24,17 +38,17 @@ type Scheduler struct {
 	log *slog.Logger
 
 	mu sync.Mutex
-	// sentReminders remembers which reminder (task → remind_at) was pushed,
-	// so that every tick does not repeat it.
-	sentReminders map[int64]time.Time
-	// sentDigests remembers "user/date/kind" digests already pushed.
-	sentDigests map[string]bool
+	// sentReminders remembers the reminder last pushed for each task, so
+	// that it is repeated daily rather than on every tick.
+	sentReminders map[int64]sentReminder
+	// sentDigests remembers when each "user/date/kind" digest was pushed.
+	sentDigests map[string]time.Time
 	lastPurge   time.Time
 }
 
 // New creates a scheduler and hooks catch-up delivery into the hub.
 func New(svc *service.Service, hub *events.Hub, log *slog.Logger) *Scheduler {
-	s := &Scheduler{svc: svc, hub: hub, log: log, sentReminders: map[int64]time.Time{}, sentDigests: map[string]bool{}}
+	s := &Scheduler{svc: svc, hub: hub, log: log, sentReminders: map[int64]sentReminder{}, sentDigests: map[string]time.Time{}}
 	hub.OnSubscribe(s.catchUp)
 	return s
 }
@@ -90,9 +104,16 @@ func (s *Scheduler) Tick(ctx context.Context) {
 	purge := now.Sub(s.lastPurge) > 24*time.Hour
 	if purge {
 		s.lastPurge = now
-		for id, at := range s.sentReminders {
-			if now.Sub(at) > 48*time.Hour {
+		// A reminder still due was pushed again within ReminderRepeat, so
+		// anything older is acknowledged, snoozed or gone.
+		for id, r := range s.sentReminders {
+			if now.Sub(r.pushedAt) > retention {
 				delete(s.sentReminders, id)
+			}
+		}
+		for key, at := range s.sentDigests {
+			if now.Sub(at) > retention {
+				delete(s.sentDigests, key)
 			}
 		}
 	}
@@ -112,9 +133,9 @@ func (s *Scheduler) tickUser(ctx context.Context, uid int64, now time.Time) erro
 	for _, t := range due {
 		s.mu.Lock()
 		sent, ok := s.sentReminders[t.ID]
-		fresh := !ok || !sent.Equal(*t.RemindAt)
+		fresh := !ok || !sent.remindAt.Equal(*t.RemindAt) || now.Sub(sent.pushedAt) >= ReminderRepeat
 		if fresh {
-			s.sentReminders[t.ID] = *t.RemindAt
+			s.sentReminders[t.ID] = sentReminder{remindAt: *t.RemindAt, pushedAt: now}
 		}
 		s.mu.Unlock()
 		if fresh {
@@ -128,8 +149,11 @@ func (s *Scheduler) tickUser(ctx context.Context, uid int64, now time.Time) erro
 	if kind := DigestDue(st, now); kind != "" {
 		key := fmt.Sprintf("%d/%s/%s", uid, dates.On(now, st.Cal.Loc), kind)
 		s.mu.Lock()
-		fresh := !s.sentDigests[key]
-		s.sentDigests[key] = true
+		_, sent := s.sentDigests[key]
+		if !sent {
+			s.sentDigests[key] = now
+		}
+		fresh := !sent
 		s.mu.Unlock()
 		if fresh {
 			s.hub.Publish(uid, events.Event{Type: kind})

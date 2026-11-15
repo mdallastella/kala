@@ -2,14 +2,17 @@ package service_test
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"kala/internal/events"
 	"kala/internal/service"
 	"kala/internal/store"
+	"kala/internal/tags"
 )
 
 type clock struct{ t time.Time }
@@ -114,6 +117,152 @@ func TestQuickAddAndNamespaces(t *testing.T) {
 	}
 	if _, err := s.UpdateTask(ctx, uid, task.ID, service.TaskPatch{Tags: service.Some([]string{"status:open", "status:closed"})}); !service.IsCode(err, service.CodeInvalid) {
 		t.Fatalf("two exclusive values: want invalid, got %v", err)
+	}
+}
+
+func TestNamespaceNames(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+
+	ns, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: " #Client", Exclusive: true, Default: "Acme", Values: []tags.Value{{Value: "Acme"}, {Value: "initech"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ns.Name != "client" || ns.Default != "acme" || ns.Values[0].Value != "acme" {
+		t.Fatalf("stored %+v, want it normalised", ns)
+	}
+	// The namespace applies to the lowercase tags tasks carry.
+	if _, err := s.CreateTask(ctx, uid, service.TaskInput{Title: "t", Tags: []string{"client:other"}}); !service.IsCode(err, service.CodeInvalid) {
+		t.Fatalf("undefined value of an exclusive namespace: want invalid, got %v", err)
+	}
+	if _, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: "CLIENT"}); !service.IsCode(err, service.CodeConflict) {
+		t.Fatalf("same name in another case: want conflict, got %v", err)
+	}
+	for _, name := range []string{"Due", "a:b", "two words", ""} {
+		if _, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: name}); !service.IsCode(err, service.CodeInvalid) {
+			t.Errorf("namespace %q: want invalid, got %v", name, err)
+		}
+	}
+}
+
+func TestNullFields(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	task := mustCreate(t, s, uid, service.TaskInput{Title: "t", Notes: "n", Tags: []string{"status:closed", "x"}, DueDate: new("2026-10-30")})
+
+	// null only clears the fields that can be empty.
+	for _, body := range []string{`{"closed": null}`, `{"tags": null}`, `{"title": null}`, `{"notes": null}`} {
+		var p service.TaskPatch
+		if err := json.Unmarshal([]byte(body), &p); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.UpdateTask(ctx, uid, task.ID, p); !service.IsCode(err, service.CodeInvalid) {
+			t.Errorf("%s: want invalid, got %v", body, err)
+		}
+	}
+	got, err := s.Task(ctx, uid, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ClosedAt == nil || !slices.Equal(got.Tags, []string{"status:closed", "x"}) || got.Notes != "n" {
+		t.Fatalf("rejected patches changed the task: %+v", got)
+	}
+	var p service.TaskPatch
+	if err := json.Unmarshal([]byte(`{"due_date": null, "remind_at": null}`), &p); err != nil {
+		t.Fatal(err)
+	}
+	if got, err = s.UpdateTask(ctx, uid, task.ID, p); err != nil || got.DueDate != nil {
+		t.Fatalf("clearing the due date: %v %v", got, err)
+	}
+
+	var m service.TagMeta
+	if err := json.Unmarshal([]byte(`{"name": "x", "pinned": null}`), &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetTagMeta(ctx, uid, m); !service.IsCode(err, service.CodeInvalid) {
+		t.Errorf("pinned null: want invalid, got %v", err)
+	}
+
+	entry, err := s.CreateTimeEntry(ctx, uid, service.EntryInput{TaskID: task.ID, StartedAt: service.Some(start.Add(-time.Hour)), StoppedAt: service.Some(start)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{`{"started_at": null}`, `{"note": null}`, `{"stopped_at": null}`} {
+		var in service.EntryInput
+		if err := json.Unmarshal([]byte(body), &in); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.UpdateTimeEntry(ctx, uid, entry.ID, in); !service.IsCode(err, service.CodeInvalid) {
+			t.Errorf("entry %s: want invalid, got %v", body, err)
+		}
+	}
+}
+
+func TestDayReportSplitsAtMidnight(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com") // Europe/Rome
+	task := mustCreate(t, s, uid, service.TaskInput{Title: "t"})
+	rome, _ := time.LoadLocation("Europe/Rome")
+	from := time.Date(2026, 10, 19, 23, 0, 0, 0, rome)
+	to := time.Date(2026, 10, 21, 2, 0, 0, 0, rome)
+	if _, err := s.CreateTimeEntry(ctx, uid, service.EntryInput{TaskID: task.ID, StartedAt: service.Some(from), StoppedAt: service.Some(to)}); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := s.TimeReport(ctx, uid, service.EntryFilter{From: from.Add(-time.Hour), To: to.Add(time.Hour)}, "day")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []service.ReportRow{
+		{Key: "2026-10-19", Label: "2026-10-19", Seconds: 3600},
+		{Key: "2026-10-20", Label: "2026-10-20", Seconds: 24 * 3600},
+		{Key: "2026-10-21", Label: "2026-10-21", Seconds: 2 * 3600},
+	}
+	if !slices.Equal(rep.Rows, want) || rep.Total != 27*3600 {
+		t.Fatalf("rows = %+v total = %d", rep.Rows, rep.Total)
+	}
+}
+
+func TestLongTitle(t *testing.T) {
+	s, _ := newService(t)
+	uid := register(t, s, "a@example.com")
+	ctx := context.Background()
+	// The limit counts characters, as the importer's truncation does.
+	if _, err := s.CreateTask(ctx, uid, service.TaskInput{Title: strings.Repeat("è", 500)}); err != nil {
+		t.Fatalf("500 accented characters: %v", err)
+	}
+	if _, err := s.CreateTask(ctx, uid, service.TaskInput{Title: strings.Repeat("è", 501)}); !service.IsCode(err, service.CodeInvalid) {
+		t.Fatalf("501 characters: want invalid, got %v", err)
+	}
+}
+
+func TestReportCountsEveryEntry(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	// More one-minute entries than one listing returns.
+	n := service.MaxEntries + 10
+	from := start.Add(-time.Duration(n) * time.Hour)
+	entries := make([]service.ExportEntry, n)
+	for i := range entries {
+		at, stop := from.Add(time.Duration(i)*time.Hour), from.Add(time.Duration(i)*time.Hour+time.Minute)
+		entries[i] = service.ExportEntry{StartedAt: at, StoppedAt: &stop}
+	}
+	task := service.ExportTask{Entries: entries}
+	task.Title, task.CreatedAt, task.UpdatedAt = "t", from, from
+	if _, err := s.Import(ctx, uid, &service.Export{Version: service.ExportVersion, Tasks: []service.ExportTask{task}}); err != nil {
+		t.Fatal(err)
+	}
+	f := service.EntryFilter{From: from, To: start}
+	list, err := s.TimeEntries(ctx, uid, f)
+	if err != nil || len(list) != service.MaxEntries {
+		t.Fatalf("listing: %d entries, %v", len(list), err)
+	}
+	rep, err := s.TimeReport(ctx, uid, f, "task")
+	if err != nil || rep.Total != int64(n)*60 {
+		t.Fatalf("report total = %d, want %d (%v)", rep.Total, n*60, err)
 	}
 }
 
@@ -417,10 +566,14 @@ func TestTrashAndExport(t *testing.T) {
 }
 
 func TestRefreshRotation(t *testing.T) {
-	s, _ := newService(t)
+	s, c := newService(t)
 	ctx := context.Background()
 	uid := register(t, s, "a@example.com")
 	tok, err := s.IssueRefresh(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.IssueRefresh(ctx, uid) // another device
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,12 +581,38 @@ func TestRefreshRotation(t *testing.T) {
 	if err != nil || got != uid {
 		t.Fatalf("rotate: %v %v", got, err)
 	}
-	// Reusing the old token revokes the whole family.
-	if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
-		t.Fatalf("reuse: want auth error, got %v", err)
+	// A second tab presenting the same token moments later is a race, not
+	// theft: it gets its own token and nothing is revoked.
+	c.advance(2 * time.Second)
+	got, sibling, err := s.RotateRefresh(ctx, tok)
+	if err != nil || got != uid || sibling == "" || sibling == next {
+		t.Fatalf("reuse within the grace window: %v %q %v", got, sibling, err)
 	}
-	if _, _, err := s.RotateRefresh(ctx, next); !service.IsCode(err, service.CodeAuth) {
-		t.Fatalf("after reuse the new token must be revoked too, got %v", err)
+	if _, next, err = s.RotateRefresh(ctx, next); err != nil {
+		t.Fatalf("first tab's token after the race: %v", err)
+	}
+	// Reusing it after the grace window revokes every session of the user.
+	c.advance(service.RefreshGrace + time.Second)
+	if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
+		t.Fatalf("late reuse: want auth error, got %v", err)
+	}
+	for name, tok := range map[string]string{"rotated": next, "sibling": sibling, "other device": other} {
+		if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
+			t.Errorf("after late reuse the %s token must be revoked, got %v", name, err)
+		}
+	}
+
+	// Logging out right after a rotation ends the old token's grace too.
+	tok, _ = s.IssueRefresh(ctx, uid)
+	_, next, err = s.RotateRefresh(ctx, tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RevokeRefresh(ctx, next); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
+		t.Fatalf("rotated token after logout: want auth error, got %v", err)
 	}
 }
 

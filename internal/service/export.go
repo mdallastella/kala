@@ -113,12 +113,13 @@ func (s *Service) Import(ctx context.Context, userID int64, ex *Export) (*Import
 			return err
 		}
 		for _, ns := range ex.Namespaces {
-			if _, ok := existing[ns.Name]; ok {
-				continue
-			}
 			if err := ns.Validate(); err != nil {
 				return errf(CodeInvalid, "namespace %q: %s", ns.Name, err.Error())
 			}
+			if _, ok := existing[ns.Name]; ok {
+				continue
+			}
+			existing[ns.Name] = &ns
 			if _, err := insertNamespace(ctx, tx, userID, ns); err != nil {
 				return err
 			}

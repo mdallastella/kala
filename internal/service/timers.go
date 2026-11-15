@@ -214,8 +214,24 @@ func (s *Service) entryQuery(ctx context.Context, userID int64, f EntryFilter) (
 	return cond, args, nil
 }
 
-// TimeEntries lists the entries overlapping a range, newest first.
+// MaxEntries is the maximum number of time entries returned by one listing.
+const MaxEntries = 5000
+
+// DefaultEntryRange is the range listings and reports cover when none is
+// given: the last seven days, through tomorrow so running timers are in.
+func DefaultEntryRange(now time.Time) (from, to time.Time) {
+	return now.AddDate(0, 0, -7), now.Add(24 * time.Hour)
+}
+
+// TimeEntries lists the entries overlapping a range, newest first, up to
+// MaxEntries.
 func (s *Service) TimeEntries(ctx context.Context, userID int64, f EntryFilter) ([]TimeEntry, error) {
+	return s.timeEntries(ctx, userID, f, MaxEntries)
+}
+
+// timeEntries lists the entries overlapping a range, newest first; limit < 0
+// means all of them.
+func (s *Service) timeEntries(ctx context.Context, userID int64, f EntryFilter, limit int) ([]TimeEntry, error) {
 	if !f.From.Before(f.To) {
 		return nil, errf(CodeInvalid, "from must be before to")
 	}
@@ -224,7 +240,7 @@ func (s *Service) TimeEntries(ctx context.Context, userID int64, f EntryFilter) 
 		return nil, err
 	}
 	return s.scanEntries(ctx, s.db, "SELECT "+entryColumns+" FROM time_entries e JOIN tasks t ON t.id = e.task_id WHERE "+cond+
-		" ORDER BY e.started_at DESC LIMIT 5000", args...)
+		" ORDER BY e.started_at DESC LIMIT ?", append(args, limit)...)
 }
 
 // EntryInput creates or updates a time entry.
@@ -251,6 +267,9 @@ func (s *Service) CreateTimeEntry(ctx context.Context, userID int64, in EntryInp
 	if !in.StartedAt.Set || in.StartedAt.Null || !in.StoppedAt.Set || in.StoppedAt.Null {
 		return nil, errf(CodeInvalid, "started_at and stopped_at are required")
 	}
+	if err := in.Note.notNull("note"); err != nil {
+		return nil, err
+	}
 	if !in.StoppedAt.Value.After(in.StartedAt.Value) {
 		return nil, errf(CodeInvalid, "stopped_at must be after started_at")
 	}
@@ -273,14 +292,14 @@ func (s *Service) UpdateTimeEntry(ctx context.Context, userID, id int64, in Entr
 	if err != nil {
 		return nil, err
 	}
+	if err := cmp.Or(in.StartedAt.notNull("started_at"), in.StoppedAt.notNull("stopped_at"), in.Note.notNull("note")); err != nil {
+		return nil, err
+	}
 	start, stop, note := cur.StartedAt, cur.StoppedAt, cur.Note
-	if in.StartedAt.Set && !in.StartedAt.Null {
+	if in.StartedAt.Set {
 		start = in.StartedAt.Value
 	}
 	if in.StoppedAt.Set {
-		if in.StoppedAt.Null {
-			return nil, errf(CodeInvalid, "stopped_at cannot be cleared")
-		}
 		stop = &in.StoppedAt.Value
 	}
 	if in.Note.Set {
@@ -334,13 +353,15 @@ type Report struct {
 const NoValue = "(none)"
 
 // TimeReport totals the time tracked in [from, to) grouped by "day", "task",
-// "tag" or a namespace name. Time is clipped to the range. With tag and
+// "tag" or a namespace name. Time is clipped to the range and, grouped by
+// day, split at midnight in the user's timezone. With tag and
 // namespace grouping, a task with several matching tags counts in each.
 func (s *Service) TimeReport(ctx context.Context, userID int64, f EntryFilter, group string) (*Report, error) {
 	if group == "" {
 		group = "day"
 	}
-	entries, err := s.TimeEntries(ctx, userID, f)
+	// A report totals every entry of the range, however many.
+	entries, err := s.timeEntries(ctx, userID, f, -1)
 	if err != nil {
 		return nil, err
 	}
@@ -378,8 +399,16 @@ func (s *Service) TimeReport(ctx context.Context, userID int64, f EntryFilter, g
 		rep.Total += secs
 		switch group {
 		case "day":
-			d := dates.On(start, cal.Loc).String()
-			add(d, d, secs)
+			// An entry running past midnight counts on each day it touches.
+			for at := start; at.Before(end); {
+				d := dates.On(at, cal.Loc)
+				next := d.AddDays(1).At(0, cal.Loc)
+				if next.After(end) || !next.After(at) {
+					next = end
+				}
+				add(d.String(), d.String(), int64(next.Sub(at).Seconds()))
+				at = next
+			}
 		case "task":
 			add(strconv.FormatInt(e.TaskID, 10), e.TaskTitle, secs)
 		case "tag":

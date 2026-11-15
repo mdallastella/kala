@@ -16,6 +16,11 @@ import (
 // RefreshTTL is the lifetime of a refresh token.
 const RefreshTTL = 30 * 24 * time.Hour
 
+// RefreshGrace is how long after its rotation a refresh token may be
+// presented again without counting as theft: tabs sharing the cookie can
+// refresh at the same moment.
+const RefreshGrace = 10 * time.Second
+
 // User is the public profile of an account.
 type User struct {
 	ID        int64     `json:"id"`
@@ -153,8 +158,7 @@ func (s *Service) ResetPassword(ctx context.Context, email, password string) err
 			}
 			return err
 		}
-		_, err := tx.ExecContext(ctx, "UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", ts(s.now()), id)
-		return err
+		return revokeSessions(ctx, tx, id, ts(s.now()))
 	})
 }
 
@@ -172,7 +176,8 @@ func (s *Service) issueRefresh(ctx context.Context, q querier, userID int64) (st
 
 // RotateRefresh consumes a refresh token and returns its user and a new
 // token. Presenting an already-used token revokes all of the user's sessions,
-// since it indicates the token was stolen.
+// since it indicates the token was stolen, unless it was rotated within
+// RefreshGrace: that is a concurrent refresh, which gets a token of its own.
 func (s *Service) RotateRefresh(ctx context.Context, token string) (int64, string, error) {
 	var (
 		userID  int64
@@ -181,12 +186,12 @@ func (s *Service) RotateRefresh(ctx context.Context, token string) (int64, strin
 	)
 	err := s.tx(ctx, func(tx *sql.Tx) error {
 		var (
-			id      int64
-			expires string
-			rev     sql.NullString
+			id           int64
+			expires      string
+			rev, rotated sql.NullString
 		)
-		err := tx.QueryRowContext(ctx, "SELECT id, user_id, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = ?",
-			auth.HashOpaque(token)).Scan(&id, &userID, &expires, &rev)
+		err := tx.QueryRowContext(ctx, "SELECT id, user_id, expires_at, revoked_at, rotated_at FROM refresh_tokens WHERE token_hash = ?",
+			auth.HashOpaque(token)).Scan(&id, &userID, &expires, &rev, &rotated)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errf(CodeAuth, "invalid refresh token")
 		}
@@ -194,16 +199,18 @@ func (s *Service) RotateRefresh(ctx context.Context, token string) (int64, strin
 			return err
 		}
 		now := ts(s.now())
-		if rev.Valid {
+		racing := rotated.Valid && s.now().Sub(parseTS(rotated.String)) <= RefreshGrace
+		if rev.Valid && !racing {
 			revoked = true
-			_, err := tx.ExecContext(ctx, "UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", now, userID)
-			return err
+			return revokeSessions(ctx, tx, userID, now)
 		}
 		if expires <= now {
 			return errf(CodeAuth, "refresh token expired")
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE refresh_tokens SET revoked_at = ? WHERE id = ?", now, id); err != nil {
-			return err
+		if !rev.Valid {
+			if _, err := tx.ExecContext(ctx, "UPDATE refresh_tokens SET revoked_at = ?, rotated_at = ? WHERE id = ?", now, now, id); err != nil {
+				return err
+			}
 		}
 		newTok, err = s.issueRefresh(ctx, tx, userID)
 		return err
@@ -217,11 +224,28 @@ func (s *Service) RotateRefresh(ctx context.Context, token string) (int64, strin
 	return userID, newTok, nil
 }
 
-// RevokeRefresh revokes a refresh token (logout).
-func (s *Service) RevokeRefresh(ctx context.Context, token string) error {
-	_, err := s.db.ExecContext(ctx, "UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
-		ts(s.now()), auth.HashOpaque(token))
+// revokeSessions revokes every refresh token of a user and ends the reuse
+// grace of those rotated a moment ago.
+func revokeSessions(ctx context.Context, q querier, userID int64, now string) error {
+	if _, err := q.ExecContext(ctx, "UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", now, userID); err != nil {
+		return err
+	}
+	_, err := q.ExecContext(ctx, "UPDATE refresh_tokens SET rotated_at = NULL WHERE user_id = ? AND rotated_at IS NOT NULL", userID)
 	return err
+}
+
+// RevokeRefresh revokes a refresh token (logout). The token it was rotated
+// from loses its reuse grace, so it cannot start a new session either.
+func (s *Service) RevokeRefresh(ctx context.Context, token string) error {
+	hash := auth.HashOpaque(token)
+	return s.tx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL", ts(s.now()), hash); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE refresh_tokens SET rotated_at = NULL
+			WHERE rotated_at IS NOT NULL AND user_id = (SELECT user_id FROM refresh_tokens WHERE token_hash = ?)`, hash)
+		return err
+	})
 }
 
 // AccessToken is a personal access token as listed to its owner.

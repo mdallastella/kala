@@ -20,7 +20,8 @@ type Config struct {
 	AllowSignup bool
 	// Dev relaxes cookie security for plain-HTTP local development.
 	Dev bool
-	// TrustProxy makes the server use X-Forwarded-For for client IPs.
+	// TrustProxy makes the server take client IPs from the last
+	// X-Forwarded-For entry, the one a single reverse proxy in front adds.
 	TrustProxy bool
 }
 

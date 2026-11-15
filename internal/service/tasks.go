@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"kala/internal/dates"
 	"kala/internal/filter"
@@ -40,6 +42,7 @@ type Task struct {
 	PriorityDerived bool   `json:"priority_derived,omitempty"`
 }
 
+// maxTitle is the longest title, in characters.
 const maxTitle = 500
 
 func escapeLike(s string) string {
@@ -386,7 +389,7 @@ func validateTitle(t string) (string, error) {
 	if t == "" {
 		return "", errf(CodeInvalid, "title is required")
 	}
-	if len(t) > maxTitle {
+	if utf8.RuneCountInString(t) > maxTitle {
 		return "", errf(CodeInvalid, "title is too long")
 	}
 	return t, nil
@@ -527,6 +530,10 @@ func (s *Service) UpdateTask(ctx context.Context, userID, id int64, p TaskPatch)
 }
 
 func (s *Service) updateTask(ctx context.Context, tx *sql.Tx, userID, id int64, p TaskPatch) error {
+	// Only the due date and the reminder can be cleared with null.
+	if err := cmp.Or(p.Title.notNull("title"), p.Notes.notNull("notes"), p.Tags.notNull("tags"), p.Closed.notNull("closed")); err != nil {
+		return err
+	}
 	if _, err := s.getTask(ctx, tx, userID, id, false); err != nil {
 		return err
 	}

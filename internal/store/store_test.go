@@ -30,6 +30,7 @@ func TestStatusMigration(t *testing.T) {
 		"PRAGMA user_version = 2",
 		"INSERT INTO users (id, email, password_hash, created_at) VALUES (1, 'a@example.com', 'x', '2026-01-01')",
 		"INSERT INTO namespaces (id, user_id, name, exclusive, default_value) VALUES (1, 1, 'status', 1, 'open')",
+		"INSERT INTO namespaces (id, user_id, name) VALUES (2, 1, 'Client'), (3, 1, ' #Area'), (4, 1, 'Zone'), (5, 1, 'zone')",
 		"INSERT INTO namespace_values VALUES (1, 'open', 0, 0), (1, 'waiting', 1, 0), (1, 'closed', 2, 1), (1, 'someday', 3, 0)",
 		"INSERT INTO tags (id, user_id, name) VALUES (1, 1, 'status:waiting')",
 		"INSERT INTO tasks (id, user_id, title, created_at, updated_at) VALUES (1, 1, 'T', '2026-01-01', '2026-01-01')",
@@ -79,5 +80,26 @@ func TestStatusMigration(t *testing.T) {
 	}
 	if tag != "status:pending" {
 		t.Errorf("task tag = %q, want status:pending", tag)
+	}
+
+	// Names are normalised, except where that would collide.
+	nrows, err := db.QueryContext(ctx, "SELECT name FROM namespaces ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nrows.Close()
+	var names []string
+	for nrows.Next() {
+		var n string
+		if err := nrows.Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, n)
+	}
+	if err := nrows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"status", "client", "area", "Zone", "zone"}; !slices.Equal(names, want) {
+		t.Errorf("namespace names = %q, want %q", names, want)
 	}
 }

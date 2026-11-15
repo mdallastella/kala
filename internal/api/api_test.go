@@ -28,6 +28,11 @@ import (
 
 func newServer(t *testing.T) *httptest.Server {
 	t.Helper()
+	return newServerTTL(t, api.AccessTTL)
+}
+
+func newServerTTL(t *testing.T, accessTTL time.Duration) *httptest.Server {
+	t.Helper()
 	db, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "api.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +42,7 @@ func newServer(t *testing.T) *httptest.Server {
 	svc := service.New(db, hub, nil)
 	h := api.New(api.Options{
 		Service: svc,
-		Signer:  auth.NewSigner([]byte("test-secret-test-secret-test-secret"), api.AccessTTL),
+		Signer:  auth.NewSigner([]byte("test-secret-test-secret-test-secret"), accessTTL),
 		Hub:     hub,
 		Config:  config.Config{Dev: true},
 		Logger:  slog.New(slog.DiscardHandler),
@@ -209,6 +214,34 @@ func TestEventsStream(t *testing.T) {
 		}
 	}
 	t.Fatalf("no changed event: %v", sc.Err())
+}
+
+// A stream opened with an access token ends when that token expires, so a
+// session that was revoked meanwhile cannot keep listening.
+func TestEventsStreamEndsAtTokenExpiry(t *testing.T) {
+	srv := newServerTTL(t, 2*time.Second)
+	c := newClient(t, srv.URL)
+	c.register("a@example.com")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/v1/events", nil)
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	opened := time.Now()
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != 200 {
+		t.Fatalf("events: %d", res.StatusCode)
+	}
+	if _, err := io.Copy(io.Discard, res.Body); err != nil {
+		t.Fatalf("stream did not end cleanly: %v", err)
+	}
+	if d := time.Since(opened); d > 5*time.Second {
+		t.Fatalf("stream ended after %s, want about 2s", d)
+	}
 }
 
 type bearerTransport struct{ token string }
