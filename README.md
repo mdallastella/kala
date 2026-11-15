@@ -12,7 +12,8 @@ Go backend (single binary, SQLite) + React/Material UI frontend + MCP server.
   cancelled†), `priority` (high, medium, low) and `project`.
 - **Priority** comes from the `priority:` tag or, for open tasks without one, from the due date:
   overdue or today → high, within 3 days → medium, later or none → low.
-- **Due dates** are calendar days. **Reminders** are exact times. Per-weekday **working hours** drive a
+- **Due dates** are calendar days. **Reminders** are exact times; one left unacknowledged comes back
+  once a day. Per-weekday **working hours** drive a
   morning briefing and an end-of-day wrap-up, which warns about running timers.
 - **Time tracking:** any number of timers can run at once (one per task). Closing a task stops its timer,
   and starting a timer on a closed task reopens it. Reports group by day, task, tag or any namespace.
@@ -50,7 +51,7 @@ Put a TLS-terminating reverse proxy (Caddy, nginx) in front for anything beyond 
 | `KALA_JWT_SECRET` | generated | ≥32 chars; if unset, a random secret is generated and stored in the DB |
 | `KALA_ALLOW_SIGNUP` | `false` | allow registration after the first user |
 | `KALA_DEV` | `false` | drop the `Secure` cookie flag for plain-HTTP development |
-| `KALA_TRUST_PROXY` | `false` | use `X-Forwarded-For` for the login rate limit |
+| `KALA_TRUST_PROXY` | `false` | take the client IP for the login rate limit from the last `X-Forwarded-For` entry (one reverse proxy in front) |
 
 ### Maintenance
 
@@ -136,7 +137,7 @@ sort:priority,due,-created   (a namespace name sorts by its value order; also tr
 ## MCP
 
 Kala serves an MCP endpoint at `/mcp` (Streamable HTTP). Create a personal access token in
-**Settings → Access tokens**, then for example:
+**Settings → Access tokens & MCP**, then for example:
 
 ```sh
 claude mcp add --transport http kala https://kala.example.com/mcp \
@@ -164,11 +165,11 @@ Change the shortcut at `chrome://extensions/shortcuts` ("Activate the extension"
 ## REST API
 
 JSON under `/api/v1`. `POST /tasks` and `PATCH /tasks/{id}` take a `quick` line alongside the explicit fields
-(explicit fields win); clear `due_date` / `remind_at` with `null`. `POST /tasks/bulk` ops: `add_tags`,
+(explicit fields win); clear `due_date` / `remind_at` with `null` (other fields reject it). `POST /tasks/bulk` ops: `add_tags`,
 `remove_tags`, `set_due`, `set_remind`, `close`, `reopen`, `delete`, `restore`. Errors are `{"error": {"code", "message", "details?"}}`. Authenticate with
 `Authorization: Bearer <access JWT | personal access token>`. Access JWTs last 15 minutes and are
 renewed with `POST /auth/refresh`, using the HttpOnly refresh cookie (rotated on every use; reusing
-a token revokes the session family). See `internal/api/routes.go` for the full route list.
+a token more than a few seconds after its rotation signs the user out of every session). See `internal/api/routes.go` for the full route list.
 
 ## Development
 
@@ -176,6 +177,9 @@ a token revokes the session family). See `internal/api/routes.go` for the full r
 make test   # go test ./... and vitest
 make lint   # gofmt, golangci-lint, eslint, tsc
 ```
+
+CI runs the same checks for the server and the web app (`checks` job) and for the extension; only the
+Trivy gate below blocks the image.
 
 Layout: `cmd/kala` (entry point), `internal/service` (all business rules, shared by REST and MCP),
 `internal/{tags,filter,quickadd,dates}` (pure logic), `internal/{api,mcp,events,schedule,auth,store}`,
