@@ -24,7 +24,16 @@ export function DatePrompt({ tasks, kind, onClose, onError }: Props) {
   const [expr, setExpr] = useState('');
   const [value, setValue] = useState<string | null>(current); // due: YYYY-MM-DD, remind: ISO
   const [error, setError] = useState('');
+  // The expression value was last taken from; typing ahead of the server leaves them apart.
+  const [resolved, setResolved] = useState('');
   const { update, bulk } = useActions();
+
+  const resolve = (e: string) => parseQuick(`x ${kind}:${e}`).then((p) => (kind === 'due' ? (p.due_date ?? null) : (p.remind_at ?? null)));
+  const pick = (v: string | null) => {
+    setValue(v);
+    setResolved(expr.trim());
+    setError('');
+  };
 
   const onExpr = (v: string) => {
     setExpr(v);
@@ -37,24 +46,43 @@ export function DatePrompt({ tasks, kind, onClose, onError }: Props) {
   useEffect(() => {
     const e = expr.trim();
     if (!e || CLEAR.includes(e.toLowerCase())) return;
+    let stale = false;
     const t = setTimeout(() => {
-      parseQuick(`x ${kind}:${e}`)
-        .then((p) => {
-          setValue(kind === 'due' ? (p.due_date ?? null) : (p.remind_at ?? null));
+      resolve(e)
+        .then((v) => {
+          if (stale) return;
+          setValue(v);
+          setResolved(e);
           setError('');
         })
-        .catch((err) => setError(errorMessage(err)));
+        .catch((err) => !stale && setError(errorMessage(err)));
     }, 120);
-    return () => clearTimeout(t);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resolve only depends on kind
   }, [expr, kind]);
 
   const save = async () => {
+    // Enter can come before the typed expression was parsed: parse it now rather than save the
+    // value of an earlier one.
+    let v = value;
+    const e = expr.trim();
+    if (e && !CLEAR.includes(e.toLowerCase()) && e !== resolved) {
+      try {
+        v = await resolve(e);
+      } catch (err) {
+        setError(errorMessage(err));
+        return;
+      }
+    }
     try {
       const ids = tasks.map((t) => t.id);
       if (ids.length > 1) {
-        await bulk.mutateAsync(kind === 'due' ? { ids, op: 'set_due', due_date: value } : { ids, op: 'set_remind', remind_at: value });
+        await bulk.mutateAsync(kind === 'due' ? { ids, op: 'set_due', due_date: v } : { ids, op: 'set_remind', remind_at: v });
       } else if (ids.length === 1) {
-        await update.mutateAsync({ id: ids[0], [kind === 'due' ? 'due_date' : 'remind_at']: value });
+        await update.mutateAsync({ id: ids[0], [kind === 'due' ? 'due_date' : 'remind_at']: v });
       }
       onClose();
     } catch (e) {
@@ -76,7 +104,7 @@ export function DatePrompt({ tasks, kind, onClose, onError }: Props) {
             value={expr}
             onChange={(e) => onExpr(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !error) {
+              if (e.key === 'Enter') {
                 e.preventDefault();
                 void save();
               }
@@ -85,9 +113,9 @@ export function DatePrompt({ tasks, kind, onClose, onError }: Props) {
             helperText={error || shown}
           />
           {kind === 'due' ? (
-            <TextField type="date" label="Pick a date" value={value ?? ''} onChange={(e) => setValue(e.target.value || null)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField type="date" label="Pick a date" value={value ?? ''} onChange={(e) => pick(e.target.value || null)} slotProps={{ inputLabel: { shrink: true } }} />
           ) : (
-            <DateTimeField label="Pick a time" value={toLocalInput(value)} onChange={(v) => setValue(fromLocalInput(v))} />
+            <DateTimeField label="Pick a time" value={toLocalInput(value)} onChange={(v) => pick(fromLocalInput(v))} />
           )}
           {tasks.length > 1 && (
             <Typography variant="caption" color="text.secondary">
