@@ -214,8 +214,24 @@ func (s *Service) entryQuery(ctx context.Context, userID int64, f EntryFilter) (
 	return cond, args, nil
 }
 
-// TimeEntries lists the entries overlapping a range, newest first.
+// MaxEntries is the maximum number of time entries returned by one listing.
+const MaxEntries = 5000
+
+// DefaultEntryRange is the range listings and reports cover when none is
+// given: the last seven days, through tomorrow so running timers are in.
+func DefaultEntryRange(now time.Time) (from, to time.Time) {
+	return now.AddDate(0, 0, -7), now.Add(24 * time.Hour)
+}
+
+// TimeEntries lists the entries overlapping a range, newest first, up to
+// MaxEntries.
 func (s *Service) TimeEntries(ctx context.Context, userID int64, f EntryFilter) ([]TimeEntry, error) {
+	return s.timeEntries(ctx, userID, f, MaxEntries)
+}
+
+// timeEntries lists the entries overlapping a range, newest first; limit < 0
+// means all of them.
+func (s *Service) timeEntries(ctx context.Context, userID int64, f EntryFilter, limit int) ([]TimeEntry, error) {
 	if !f.From.Before(f.To) {
 		return nil, errf(CodeInvalid, "from must be before to")
 	}
@@ -224,7 +240,7 @@ func (s *Service) TimeEntries(ctx context.Context, userID int64, f EntryFilter) 
 		return nil, err
 	}
 	return s.scanEntries(ctx, s.db, "SELECT "+entryColumns+" FROM time_entries e JOIN tasks t ON t.id = e.task_id WHERE "+cond+
-		" ORDER BY e.started_at DESC LIMIT 5000", args...)
+		" ORDER BY e.started_at DESC LIMIT ?", append(args, limit)...)
 }
 
 // EntryInput creates or updates a time entry.
@@ -344,7 +360,8 @@ func (s *Service) TimeReport(ctx context.Context, userID int64, f EntryFilter, g
 	if group == "" {
 		group = "day"
 	}
-	entries, err := s.TimeEntries(ctx, userID, f)
+	// A report totals every entry of the range, however many.
+	entries, err := s.timeEntries(ctx, userID, f, -1)
 	if err != nil {
 		return nil, err
 	}

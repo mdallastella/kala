@@ -238,6 +238,34 @@ func TestLongTitle(t *testing.T) {
 	}
 }
 
+func TestReportCountsEveryEntry(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	// More one-minute entries than one listing returns.
+	n := service.MaxEntries + 10
+	from := start.Add(-time.Duration(n) * time.Hour)
+	entries := make([]service.ExportEntry, n)
+	for i := range entries {
+		at, stop := from.Add(time.Duration(i)*time.Hour), from.Add(time.Duration(i)*time.Hour+time.Minute)
+		entries[i] = service.ExportEntry{StartedAt: at, StoppedAt: &stop}
+	}
+	task := service.ExportTask{Entries: entries}
+	task.Title, task.CreatedAt, task.UpdatedAt = "t", from, from
+	if _, err := s.Import(ctx, uid, &service.Export{Version: service.ExportVersion, Tasks: []service.ExportTask{task}}); err != nil {
+		t.Fatal(err)
+	}
+	f := service.EntryFilter{From: from, To: start}
+	list, err := s.TimeEntries(ctx, uid, f)
+	if err != nil || len(list) != service.MaxEntries {
+		t.Fatalf("listing: %d entries, %v", len(list), err)
+	}
+	rep, err := s.TimeReport(ctx, uid, f, "task")
+	if err != nil || rep.Total != int64(n)*60 {
+		t.Fatalf("report total = %d, want %d (%v)", rep.Total, n*60, err)
+	}
+}
+
 func TestTimers(t *testing.T) {
 	s, c := newService(t)
 	ctx := context.Background()
