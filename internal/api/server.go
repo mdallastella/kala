@@ -217,8 +217,10 @@ func (s *Server) recoverer(next http.Handler) http.Handler {
 
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.TrustProxy {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			return strings.TrimSpace(strings.Split(xff, ",")[0])
+		// The last entry is the one our own proxy added; earlier ones come
+		// from the client and cannot be trusted.
+		if xff := strings.Join(r.Header.Values("X-Forwarded-For"), ","); xff != "" {
+			return strings.TrimSpace(xff[strings.LastIndexByte(xff, ',')+1:])
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
