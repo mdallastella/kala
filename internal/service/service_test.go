@@ -10,6 +10,7 @@ import (
 	"kala/internal/events"
 	"kala/internal/service"
 	"kala/internal/store"
+	"kala/internal/tags"
 )
 
 type clock struct{ t time.Time }
@@ -114,6 +115,32 @@ func TestQuickAddAndNamespaces(t *testing.T) {
 	}
 	if _, err := s.UpdateTask(ctx, uid, task.ID, service.TaskPatch{Tags: service.Some([]string{"status:open", "status:closed"})}); !service.IsCode(err, service.CodeInvalid) {
 		t.Fatalf("two exclusive values: want invalid, got %v", err)
+	}
+}
+
+func TestNamespaceNames(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+
+	ns, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: " #Client", Exclusive: true, Default: "Acme", Values: []tags.Value{{Value: "Acme"}, {Value: "initech"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ns.Name != "client" || ns.Default != "acme" || ns.Values[0].Value != "acme" {
+		t.Fatalf("stored %+v, want it normalised", ns)
+	}
+	// The namespace applies to the lowercase tags tasks carry.
+	if _, err := s.CreateTask(ctx, uid, service.TaskInput{Title: "t", Tags: []string{"client:other"}}); !service.IsCode(err, service.CodeInvalid) {
+		t.Fatalf("undefined value of an exclusive namespace: want invalid, got %v", err)
+	}
+	if _, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: "CLIENT"}); !service.IsCode(err, service.CodeConflict) {
+		t.Fatalf("same name in another case: want conflict, got %v", err)
+	}
+	for _, name := range []string{"Due", "a:b", "two words", ""} {
+		if _, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: name}); !service.IsCode(err, service.CodeInvalid) {
+			t.Errorf("namespace %q: want invalid, got %v", name, err)
+		}
 	}
 }
 

@@ -108,16 +108,24 @@ func (n *Namespace) FirstTerminal() (string, bool) {
 	return "", false
 }
 
-// Validate checks a namespace definition.
+// Validate checks a namespace definition and normalises its name, values and
+// default the way tags are, so that it matches the tags tasks carry.
 func (n *Namespace) Validate() error {
-	if strings.Contains(n.Name, ":") {
-		return fmt.Errorf("namespace name cannot contain ':'")
-	}
-	if _, err := Normalize(n.Name); err != nil {
+	name, err := Normalize(n.Name)
+	if err != nil {
 		return err
 	}
-	if Reserved[n.Name] {
-		return fmt.Errorf("%q is a reserved keyword", n.Name)
+	if strings.Contains(name, ":") {
+		return fmt.Errorf("namespace name cannot contain ':'")
+	}
+	if Reserved[name] {
+		return fmt.Errorf("%q is a reserved keyword", name)
+	}
+	n.Name = name
+	if n.Default != "" {
+		if n.Default, err = Normalize(n.Default); err != nil {
+			return err
+		}
 	}
 	seen := map[string]bool{}
 	for i, v := range n.Values {
