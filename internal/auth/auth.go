@@ -70,8 +70,8 @@ func (s *Signer) Issue(userID int64) (string, time.Time, error) {
 	return signed, exp, err
 }
 
-// Verify checks a token and returns its user id.
-func (s *Signer) Verify(token string) (int64, error) {
+// Verify checks a token and returns its user id and expiry.
+func (s *Signer) Verify(token string) (int64, time.Time, error) {
 	var claims jwt.RegisteredClaims
 	_, err := jwt.ParseWithClaims(token, &claims, func(*jwt.Token) (any, error) { return s.key, nil },
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
@@ -80,13 +80,13 @@ func (s *Signer) Verify(token string) (int64, error) {
 		jwt.WithTimeFunc(s.now),
 	)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %w", ErrInvalidToken, err)
+		return 0, time.Time{}, fmt.Errorf("%w: %w", ErrInvalidToken, err)
 	}
 	id, err := strconv.ParseInt(claims.Subject, 10, 64)
 	if err != nil {
-		return 0, ErrInvalidToken
+		return 0, time.Time{}, ErrInvalidToken
 	}
-	return id, nil
+	return id, claims.ExpiresAt.Time, nil
 }
 
 // NewOpaque returns a random token with prefix and the hash to store.
@@ -104,7 +104,10 @@ func HashOpaque(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-type ctxKey struct{}
+type (
+	ctxKey    struct{}
+	expiryKey struct{}
+)
 
 // WithUser returns a context carrying the authenticated user id.
 func WithUser(ctx context.Context, id int64) context.Context {
@@ -115,4 +118,17 @@ func WithUser(ctx context.Context, id int64) context.Context {
 func UserID(ctx context.Context) int64 {
 	id, _ := ctx.Value(ctxKey{}).(int64)
 	return id
+}
+
+// WithExpiry returns a context carrying when the request's credential
+// expires.
+func WithExpiry(ctx context.Context, at time.Time) context.Context {
+	return context.WithValue(ctx, expiryKey{}, at)
+}
+
+// Expiry returns when the request's credential expires; ok is false for
+// credentials that do not expire (personal access tokens).
+func Expiry(ctx context.Context) (at time.Time, ok bool) {
+	at, ok = ctx.Value(expiryKey{}).(time.Time)
+	return at, ok
 }

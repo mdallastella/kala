@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -74,11 +75,11 @@ func (s *Server) handle(h handlerFunc) http.Handler {
 // authed requires a valid access token or PAT.
 func (s *Server) authed(h handlerFunc) http.Handler {
 	return s.handle(func(w http.ResponseWriter, r *http.Request) error {
-		uid, err := s.authenticate(r, true)
+		ctx, err := s.authenticate(r, true)
 		if err != nil {
 			return err
 		}
-		return h(w, r.WithContext(auth.WithUser(r.Context(), uid)))
+		return h(w, r.WithContext(ctx))
 	})
 }
 
@@ -90,22 +91,28 @@ func bearer(r *http.Request) string {
 	return ""
 }
 
-func (s *Server) authenticate(r *http.Request, allowJWT bool) (int64, error) {
+// authenticate returns the request context carrying the user of its bearer
+// token and, for an access JWT, when that token expires.
+func (s *Server) authenticate(r *http.Request, allowJWT bool) (context.Context, error) {
 	tok := bearer(r)
 	if tok == "" {
-		return 0, &service.Error{Code: service.CodeAuth, Message: "missing bearer token"}
+		return nil, &service.Error{Code: service.CodeAuth, Message: "missing bearer token"}
 	}
 	if strings.HasPrefix(tok, auth.PATPrefix) {
-		return s.svc.LookupAccessToken(r.Context(), tok)
+		uid, err := s.svc.LookupAccessToken(r.Context(), tok)
+		if err != nil {
+			return nil, err
+		}
+		return auth.WithUser(r.Context(), uid), nil
 	}
 	if !allowJWT {
-		return 0, &service.Error{Code: service.CodeAuth, Message: "a personal access token is required"}
+		return nil, &service.Error{Code: service.CodeAuth, Message: "a personal access token is required"}
 	}
-	uid, err := s.signer.Verify(tok)
+	uid, exp, err := s.signer.Verify(tok)
 	if err != nil {
-		return 0, &service.Error{Code: service.CodeAuth, Message: "invalid or expired access token"}
+		return nil, &service.Error{Code: service.CodeAuth, Message: "invalid or expired access token"}
 	}
-	return uid, nil
+	return auth.WithExpiry(auth.WithUser(r.Context(), uid), exp), nil
 }
 
 func uid(r *http.Request) int64 { return auth.UserID(r.Context()) }

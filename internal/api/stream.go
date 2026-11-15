@@ -17,7 +17,8 @@ const heartbeat = 25 * time.Second
 
 // events streams server-sent events to an authenticated client. Clients use
 // fetch with an Authorization header rather than EventSource, so no token
-// ends up in URLs or logs.
+// ends up in URLs or logs. Streams of personal access tokens stay open until
+// the client goes away.
 func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	rc := http.NewResponseController(w)
 	// The server write timeout must not cut long-lived streams.
@@ -36,9 +37,19 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	defer cancel()
 	tick := time.NewTicker(heartbeat)
 	defer tick.Stop()
+	// A stream opened with an access token ends when the token expires; the
+	// client reconnects with a fresh one, which a revoked session cannot get.
+	var expired <-chan time.Time
+	if at, ok := auth.Expiry(r.Context()); ok {
+		t := time.NewTimer(time.Until(at))
+		defer t.Stop()
+		expired = t.C
+	}
 	for {
 		select {
 		case <-r.Context().Done():
+			return nil
+		case <-expired:
 			return nil
 		case <-tick.C:
 			if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
@@ -63,12 +74,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 // mcpAuth only admits personal access tokens to the MCP endpoint.
 func (s *Server) mcpAuth(next http.Handler) http.Handler {
 	return s.handle(func(w http.ResponseWriter, r *http.Request) error {
-		id, err := s.authenticate(r, false)
+		ctx, err := s.authenticate(r, false)
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="kala"`)
 			return err
 		}
-		next.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), id)))
+		next.ServeHTTP(w, r.WithContext(ctx))
 		return nil
 	})
 }
