@@ -43,6 +43,25 @@ export function buildTree(tags: Tag[]): TagNode[] {
   return roots;
 }
 
+/**
+ * A namespace's sidebar node: its tree root (or an empty one) with a row for
+ * every listed value, used or not, ordered as the namespace lists them and
+ * then unlisted values A–Z.
+ */
+export function withNamespaceValues(root: TagNode | undefined, ns: { name: string; values: { value: string }[] }): TagNode {
+  const node: TagNode = root ? { ...root, children: [...root.children] } : { name: ns.name, label: ns.name, children: [], open: 0 };
+  for (const { value } of ns.values) {
+    const name = `${ns.name}:${value}`;
+    if (!node.children.some((c) => c.name === name)) node.children.push({ name, label: value, children: [], open: 0 });
+  }
+  const rank = (label: string) => {
+    const i = ns.values.findIndex((v) => v.value === label);
+    return i < 0 ? ns.values.length : i;
+  };
+  node.children.sort((a, b) => rank(a.label) - rank(b.label) || a.label.localeCompare(b.label));
+  return node;
+}
+
 const palette = ['#5b5bd6', '#0e7c86', '#c2410c', '#15803d', '#be185d', '#7c3aed', '#0369a1', '#a16207', '#b91c1c', '#4d7c0f'];
 
 function hash(s: string): number {

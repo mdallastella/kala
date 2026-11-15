@@ -2,9 +2,11 @@
 //
 // A tag is a colon-separated path such as "project:kala:api". Its first
 // segment is its namespace. Namespaces may be defined per user with a list of
-// ordered values; an exclusive namespace allows at most one of its values per
-// task, may have a default value, and marks some values as terminal (the task
-// is considered closed while it carries one).
+// ordered values; an exclusive namespace allows at most one value per task
+// (counted by its first segment, so "client:acme:ops" is the value "acme"),
+// restricted to the listed values when there are any. It may have a default
+// value and marks some values as terminal (the task is considered closed
+// while it carries one).
 package tags
 
 import (
@@ -148,10 +150,20 @@ func (n *Namespace) Validate() error {
 	if n.Default != "" && !n.Exclusive {
 		return fmt.Errorf("only exclusive namespaces can have a default")
 	}
-	if n.Exclusive && len(n.Values) == 0 {
-		return fmt.Errorf("an exclusive namespace needs at least one value")
-	}
 	return nil
+}
+
+// Head returns the first segment of a namespace value: the part that counts
+// for exclusivity ("acme:ops" → "acme").
+func Head(value string) string {
+	h, _, _ := strings.Cut(value, ":")
+	return h
+}
+
+// Allows reports whether value may be used in the namespace: any value when
+// no values are listed, otherwise one whose head is listed.
+func (n *Namespace) Allows(value string) bool {
+	return len(n.Values) == 0 || n.Has(Head(value))
 }
 
 // Rules is the set of namespace definitions of one user, keyed by name.
@@ -165,15 +177,22 @@ func (r Rules) Apply(current, add, remove []string) ([]string, error) {
 	addedNS := map[string]string{}
 	for _, t := range add {
 		ns, v := Split(t)
-		if def, ok := r[ns]; ok && def.Exclusive && v != "" {
-			if !def.Has(v) {
+		if def, ok := r[ns]; ok && def.Exclusive {
+			if v == "" {
+				return nil, fmt.Errorf("namespace %q is exclusive: %q needs a value (e.g. %s:something)", ns, t, ns)
+			}
+			if !def.Allows(v) {
 				return nil, fmt.Errorf("%q is not a value of namespace %q (allowed: %s)", v, ns, def.valueList())
 			}
-			if prev, dup := addedNS[ns]; dup && prev != t {
+			head := Head(v)
+			if prev, dup := addedNS[ns]; dup && Head(valueOf(prev)) != head {
 				return nil, fmt.Errorf("namespace %q is exclusive: cannot add both %q and %q", ns, prev, t)
 			}
 			addedNS[ns] = t
-			set = slices.DeleteFunc(set, func(x string) bool { return strings.HasPrefix(x, ns+":") })
+			set = slices.DeleteFunc(set, func(x string) bool {
+				xns, xv := Split(x)
+				return xns == ns && Head(xv) != head
+			})
 		}
 		if !slices.Contains(set, t) {
 			set = append(set, t)
@@ -186,22 +205,27 @@ func (r Rules) Apply(current, add, remove []string) ([]string, error) {
 
 // Validate checks that a complete tag set respects exclusivity.
 func (r Rules) Validate(set []string) error {
-	count := map[string]int{}
+	heads := map[string]string{}
 	for _, t := range set {
 		ns, v := Split(t)
 		def, ok := r[ns]
 		if !ok || !def.Exclusive {
 			continue
 		}
-		if v == "" || !def.Has(v) {
+		if v == "" || !def.Allows(v) {
 			return fmt.Errorf("%q is not a value of namespace %q", t, ns)
 		}
-		count[ns]++
-		if count[ns] > 1 {
+		if prev, seen := heads[ns]; seen && prev != Head(v) {
 			return fmt.Errorf("namespace %q is exclusive but the task would have several values", ns)
 		}
+		heads[ns] = Head(v)
 	}
 	return nil
+}
+
+func valueOf(tag string) string {
+	_, v := Split(tag)
+	return v
 }
 
 func (r Rules) withDefaults(set []string) []string {
@@ -227,7 +251,7 @@ func (r Rules) Defaults() []string {
 func (r Rules) Terminal(set []string) bool {
 	for _, t := range set {
 		ns, v := Split(t)
-		if def, ok := r[ns]; ok && def.Terminal(v) {
+		if def, ok := r[ns]; ok && def.Terminal(Head(v)) {
 			return true
 		}
 	}

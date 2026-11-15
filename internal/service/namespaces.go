@@ -146,15 +146,16 @@ func (s *Service) saveNamespace(ctx context.Context, userID, id int64, ns tags.N
 }
 
 // checkExclusive refuses to make a namespace exclusive when existing tasks
-// would violate it.
+// would violate it: a bare namespace tag, a value that is not allowed, or
+// values with different heads on the same task.
 func checkExclusive(ctx context.Context, q querier, userID int64, ns *tags.Namespace) error {
 	rows, err := q.QueryContext(ctx, `SELECT tt.task_id, g.name FROM task_tags tt JOIN tags g ON g.id = tt.tag_id
-		WHERE g.user_id = ? AND g.name LIKE ? ESCAPE '\'`, userID, escapeLike(ns.Name)+":%")
+		WHERE g.user_id = ? AND (g.name = ? OR g.name LIKE ? ESCAPE '\')`, userID, ns.Name, escapeLike(ns.Name)+":%")
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	perTask := map[int64]int{}
+	heads := map[int64]string{}
 	var bad []int64
 	for rows.Next() {
 		var (
@@ -164,9 +165,10 @@ func checkExclusive(ctx context.Context, q querier, userID int64, ns *tags.Names
 		if err := rows.Scan(&id, &name); err != nil {
 			return err
 		}
-		perTask[id]++
 		_, v := tags.Split(name)
-		if (perTask[id] > 1 || !ns.Has(v)) && !slices.Contains(bad, id) {
+		prev, seen := heads[id]
+		heads[id] = tags.Head(v)
+		if (v == "" || !ns.Allows(v) || seen && prev != tags.Head(v)) && !slices.Contains(bad, id) {
 			bad = append(bad, id)
 		}
 	}
@@ -174,7 +176,7 @@ func checkExclusive(ctx context.Context, q querier, userID int64, ns *tags.Names
 		return err
 	}
 	if len(bad) > 0 {
-		return &Error{Code: CodeConflict, Message: "some tasks have several or undefined values in this namespace; fix them first",
+		return &Error{Code: CodeConflict, Message: "some tasks have several values, a bare namespace tag or an undefined value in this namespace; fix them first",
 			Details: map[string]any{"task_ids": bad}}
 	}
 	return nil

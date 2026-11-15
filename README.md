@@ -6,7 +6,9 @@ Go backend (single binary, SQLite) + React/Material UI frontend + MCP server.
 - **Everything is a tag.** Projects, status and priority are tag namespaces:
   `project:kala:api`, `status:open`, `priority:high`, `client:acme`.
   Filtering by a tag matches its whole subtree (`project:kala` includes `project:kala:api`).
-- **Namespaces** can be *exclusive* (one value per task: adding `status:closed` replaces `status:open`),
+- **Namespaces** can be *exclusive* (one value per task: adding `status:closed` replaces `status:open`;
+  the value is the first segment, so `client:acme` and `client:acme:ops` can coexist). An exclusive
+  namespace with listed values only accepts those; with none it accepts any value. Namespaces can
   have a *default* for new tasks, an *order* (used for sorting), and *terminal* values (the task is
   closed while it carries one). New accounts get `status` (open*, pending, delegated, closed†,
   cancelled†), `priority` (high, medium, low) and `project`.

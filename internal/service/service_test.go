@@ -120,6 +120,44 @@ func TestQuickAddAndNamespaces(t *testing.T) {
 	}
 }
 
+func TestExclusiveNamespaceWithoutValues(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+	exclusive := func() error {
+		_, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: "client", Exclusive: true})
+		return err
+	}
+
+	mustCreate(t, s, uid, service.TaskInput{Title: "sub-values", Tags: []string{"client:fimi", "client:fimi:ops"}})
+	two := mustCreate(t, s, uid, service.TaskInput{Title: "two", Tags: []string{"client:fimi", "client:acme"}})
+	if err := exclusive(); !service.IsCode(err, service.CodeConflict) {
+		t.Fatalf("task with two clients: want conflict, got %v", err)
+	}
+	if _, err := s.UpdateTask(ctx, uid, two.ID, service.TaskPatch{RemoveTags: []string{"client:acme"}}); err != nil {
+		t.Fatal(err)
+	}
+	bare := mustCreate(t, s, uid, service.TaskInput{Title: "bare", Tags: []string{"client"}})
+	if err := exclusive(); !service.IsCode(err, service.CodeConflict) {
+		t.Fatalf("task with a bare tag: want conflict, got %v", err)
+	}
+	if _, err := s.UpdateTask(ctx, uid, bare.ID, service.TaskPatch{RemoveTags: []string{"client"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := exclusive(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Any value is accepted, and a new head replaces the old one.
+	task, err := s.UpdateTask(ctx, uid, two.ID, service.TaskPatch{AddTags: []string{"client:newco"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(task.Tags, []string{"client:newco", "status:open"}) {
+		t.Fatalf("tags = %v", task.Tags)
+	}
+}
+
 func TestNamespaceNames(t *testing.T) {
 	s, _ := newService(t)
 	ctx := context.Background()
