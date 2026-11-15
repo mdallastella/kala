@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,6 +197,44 @@ func TestNullFields(t *testing.T) {
 		if _, err := s.UpdateTimeEntry(ctx, uid, entry.ID, in); !service.IsCode(err, service.CodeInvalid) {
 			t.Errorf("entry %s: want invalid, got %v", body, err)
 		}
+	}
+}
+
+func TestDayReportSplitsAtMidnight(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com") // Europe/Rome
+	task := mustCreate(t, s, uid, service.TaskInput{Title: "t"})
+	rome, _ := time.LoadLocation("Europe/Rome")
+	from := time.Date(2026, 10, 19, 23, 0, 0, 0, rome)
+	to := time.Date(2026, 10, 21, 2, 0, 0, 0, rome)
+	if _, err := s.CreateTimeEntry(ctx, uid, service.EntryInput{TaskID: task.ID, StartedAt: service.Some(from), StoppedAt: service.Some(to)}); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := s.TimeReport(ctx, uid, service.EntryFilter{From: from.Add(-time.Hour), To: to.Add(time.Hour)}, "day")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []service.ReportRow{
+		{Key: "2026-10-19", Label: "2026-10-19", Seconds: 3600},
+		{Key: "2026-10-20", Label: "2026-10-20", Seconds: 24 * 3600},
+		{Key: "2026-10-21", Label: "2026-10-21", Seconds: 2 * 3600},
+	}
+	if !slices.Equal(rep.Rows, want) || rep.Total != 27*3600 {
+		t.Fatalf("rows = %+v total = %d", rep.Rows, rep.Total)
+	}
+}
+
+func TestLongTitle(t *testing.T) {
+	s, _ := newService(t)
+	uid := register(t, s, "a@example.com")
+	ctx := context.Background()
+	// The limit counts characters, as the importer's truncation does.
+	if _, err := s.CreateTask(ctx, uid, service.TaskInput{Title: strings.Repeat("è", 500)}); err != nil {
+		t.Fatalf("500 accented characters: %v", err)
+	}
+	if _, err := s.CreateTask(ctx, uid, service.TaskInput{Title: strings.Repeat("è", 501)}); !service.IsCode(err, service.CodeInvalid) {
+		t.Fatalf("501 characters: want invalid, got %v", err)
 	}
 }
 

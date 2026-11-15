@@ -337,7 +337,8 @@ type Report struct {
 const NoValue = "(none)"
 
 // TimeReport totals the time tracked in [from, to) grouped by "day", "task",
-// "tag" or a namespace name. Time is clipped to the range. With tag and
+// "tag" or a namespace name. Time is clipped to the range and, grouped by
+// day, split at midnight in the user's timezone. With tag and
 // namespace grouping, a task with several matching tags counts in each.
 func (s *Service) TimeReport(ctx context.Context, userID int64, f EntryFilter, group string) (*Report, error) {
 	if group == "" {
@@ -381,8 +382,16 @@ func (s *Service) TimeReport(ctx context.Context, userID int64, f EntryFilter, g
 		rep.Total += secs
 		switch group {
 		case "day":
-			d := dates.On(start, cal.Loc).String()
-			add(d, d, secs)
+			// An entry running past midnight counts on each day it touches.
+			for at := start; at.Before(end); {
+				d := dates.On(at, cal.Loc)
+				next := d.AddDays(1).At(0, cal.Loc)
+				if next.After(end) || !next.After(at) {
+					next = end
+				}
+				add(d.String(), d.String(), int64(next.Sub(at).Seconds()))
+				at = next
+			}
 		case "task":
 			add(strconv.FormatInt(e.TaskID, 10), e.TaskTitle, secs)
 		case "tag":
