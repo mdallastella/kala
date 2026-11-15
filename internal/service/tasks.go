@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"kala/internal/dates"
 	"kala/internal/filter"
@@ -41,6 +42,7 @@ type Task struct {
 	PriorityDerived bool   `json:"priority_derived,omitempty"`
 }
 
+// maxTitle is the longest title, in characters.
 const maxTitle = 500
 
 func escapeLike(s string) string {
@@ -387,7 +389,7 @@ func validateTitle(t string) (string, error) {
 	if t == "" {
 		return "", errf(CodeInvalid, "title is required")
 	}
-	if len(t) > maxTitle {
+	if utf8.RuneCountInString(t) > maxTitle {
 		return "", errf(CodeInvalid, "title is too long")
 	}
 	return t, nil
