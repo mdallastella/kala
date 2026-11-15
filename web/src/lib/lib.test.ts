@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
-import { ago, clock, dueLabel, duration, fullDateTime, isoDate, monthGrid, parseClock, timeLabel } from './format';
+import { ago, clock, dateOf, dueLabel, duration, fullDateTime, isoDate, isOverdue, monthGrid, parseClock, setZone, startOfDay, timeLabel, todayDate } from './format';
 import { buildTree, chipTags, projectFromQuery, tagColor } from './tags';
 import { completeToken, currentToken, suggestions } from './quickadd';
 import { hourRange, segments } from './timeline';
@@ -54,6 +54,43 @@ describe('format', () => {
     const iso = new Date(2026, 9, 21, 14, 5).toISOString();
     expect(timeLabel(iso)).toBe('14:05');
     expect(fullDateTime(iso)).toContain('14:05');
+  });
+});
+
+describe('profile timezone', () => {
+  afterEach(() => setZone(undefined));
+
+  it('decides which day an instant falls on', () => {
+    setZone('Asia/Tokyo');
+    expect(dateOf('2026-10-21T14:59:59Z')).toBe('2026-10-21');
+    expect(dateOf('2026-10-21T15:00:00Z')).toBe('2026-10-22');
+    setZone('America/Los_Angeles');
+    expect(dateOf('2026-10-21T06:59:59Z')).toBe('2026-10-20');
+    const lateEvening = new Date('2026-10-22T05:00:00Z').getTime(); // still the 21st in Los Angeles
+    expect(isoDate(todayDate(lateEvening))).toBe('2026-10-21');
+    expect(dueLabel('2026-10-21', todayDate(lateEvening))).toBe('Today');
+    expect(isOverdue('2026-10-21', todayDate(lateEvening))).toBe(false);
+    expect(isOverdue('2026-10-20', todayDate(lateEvening))).toBe(true);
+  });
+
+  it('finds the instant a day begins, across DST changes', () => {
+    setZone('Asia/Tokyo');
+    expect(startOfDay('2026-10-22').toISOString()).toBe('2026-10-21T15:00:00.000Z');
+    setZone('Europe/Rome');
+    expect(startOfDay('2026-03-29').toISOString()).toBe('2026-03-28T23:00:00.000Z'); // clocks go forward that day
+    expect(startOfDay('2026-03-30').toISOString()).toBe('2026-03-29T22:00:00.000Z');
+    expect(startOfDay(new Date(2026, 9, 25)).toISOString()).toBe('2026-10-24T22:00:00.000Z'); // and back
+    expect(startOfDay('2026-10-26').toISOString()).toBe('2026-10-25T23:00:00.000Z');
+  });
+
+  it('splits the week timeline at its midnights', () => {
+    setZone('Asia/Tokyo');
+    const entry = { id: 1, task_id: 1, task_title: 'T', task_tags: [], started_at: '2026-10-19T14:00:00Z', stopped_at: '2026-10-19T16:30:00Z', note: '', seconds: 0 };
+    const segs = segments([entry], new Date(2026, 9, 19), 0); // 23:00 Monday to 01:30 Tuesday in Tokyo
+    expect(segs.map((s) => [s.day, s.start, s.end])).toEqual([
+      [0, 1380, 1440],
+      [1, 0, 90],
+    ]);
   });
 });
 

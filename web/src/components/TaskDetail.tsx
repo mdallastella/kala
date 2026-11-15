@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { errorMessage } from '../api/client';
 import { useActions, useEntries, useNamespaces, useTask } from '../api/hooks';
-import { clock, dateTimeLabel, dueLabel, duration, fullDateTime, isoDate, isOverdue, timeLabel } from '../lib/format';
+import { clock, dateOf, dateTimeLabel, dueLabel, duration, fullDateTime, isOverdue, timeLabel } from '../lib/format';
 import { namespaceValues, priorityOf, PRIORITY_COLORS, statusOf } from '../lib/tags';
 import { TagChip } from './TagChip';
 import { QuickPreview, useQuickParse } from './QuickPreview';
@@ -254,7 +254,7 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
           {entries.slice(0, 20).map((e) => (
             <ListItem key={e.id} disableGutters sx={{ py: 0 }}>
               <ListItemText
-                primary={`${dueLabel(isoDate(new Date(e.started_at)))} ${timeLabel(e.started_at)}–${e.stopped_at ? timeLabel(e.stopped_at) : 'now'}`}
+                primary={`${dueLabel(dateOf(e.started_at))} ${timeLabel(e.started_at)}–${e.stopped_at ? timeLabel(e.stopped_at) : 'now'}`}
                 secondary={e.note || undefined}
               />
               <Typography variant="caption" sx={{ fontVariantNumeric: 'tabular-nums' }}>

@@ -1,4 +1,51 @@
-/** Local calendar date as YYYY-MM-DD. */
+// Which calendar day an instant falls on is decided in the profile timezone, like the server's
+// filters and digests (due:today, the briefing). Times of day are shown in the browser's.
+let zone: string | undefined;
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** Sets the profile timezone; undefined falls back to the browser's. */
+export function setZone(tz: string | undefined) {
+  zone = tz;
+}
+
+/** The wall clock of an instant in the profile timezone, expressed as a UTC timestamp. */
+function wallClock(ms: number): number {
+  if (!zone) {
+    const d = new Date(ms);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+  }
+  let f = zoneFormats.get(zone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    zoneFormats.set(zone, f);
+  }
+  const p: Record<string, number> = {};
+  for (const { type, value } of f.formatToParts(ms)) p[type] = Number(value);
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+}
+
+/** Calendar date (YYYY-MM-DD) of an instant in the profile timezone. */
+export function dateOf(t: Date | string | number): string {
+  return new Date(wallClock(new Date(t).getTime())).toISOString().slice(0, 10);
+}
+
+/** Today in the profile timezone, as a calendar-day Date for isoDate, addDays and startOfWeek. */
+export function todayDate(now: number = Date.now()): Date {
+  return parseDate(dateOf(now));
+}
+
+/** The instant a calendar day begins in the profile timezone. */
+export function startOfDay(day: Date | string): Date {
+  const [y, m, d] = (typeof day === 'string' ? day : isoDate(day)).split('-').map(Number);
+  if (!zone) return new Date(y, m - 1, d);
+  const wall = Date.UTC(y, m - 1, d);
+  // The offset depends on the instant, so settle on it in two steps (it changes on DST days).
+  let t = wall;
+  for (let i = 0; i < 2; i++) t = wall - (wallClock(t) - t);
+  return new Date(t);
+}
+
+/** Calendar date of a calendar-day Date as YYYY-MM-DD. */
 export function isoDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -32,7 +79,7 @@ export function parseDate(s: string): Date {
 }
 
 /** Human label for a due date relative to today. */
-export function dueLabel(s: string, today = new Date()): string {
+export function dueLabel(s: string, today = todayDate()): string {
   const t = isoDate(today);
   if (s === t) return 'Today';
   if (s === isoDate(addDays(today, 1))) return 'Tomorrow';
@@ -45,13 +92,13 @@ export function dueLabel(s: string, today = new Date()): string {
   return d.toLocaleDateString(undefined, opts);
 }
 
-export function isOverdue(s: string | null, today = new Date()): boolean {
+export function isOverdue(s: string | null, today = todayDate()): boolean {
   return s != null && s < isoDate(today);
 }
 
 export function dateTimeLabel(iso: string): string {
   const d = new Date(iso);
-  const day = dueLabel(isoDate(d));
+  const day = dueLabel(dateOf(d));
   return `${day} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
 }
 

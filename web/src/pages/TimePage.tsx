@@ -31,19 +31,21 @@ import { useNow } from '../components/TimerStrip';
 import { WeekTimeline } from '../components/WeekTimeline';
 import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
-import { addDays, dueLabel, duration, fromLocalInput, isoDate, startOfWeek, timeLabel, toLocalInput } from '../lib/format';
+import { addDays, dateOf, dueLabel, duration, fromLocalInput, startOfDay, startOfWeek, timeLabel, todayDate, toLocalInput } from '../lib/format';
 import { chipTags } from '../lib/tags';
 
 export function TimePage() {
-  const [week, setWeek] = useState(() => startOfWeek(new Date()));
+  const [week, setWeek] = useState(() => startOfWeek(todayDate()));
   const [group, setGroup] = useState('project');
   const [editing, setEditing] = useState<TimeEntry | 'new' | null>(null);
   const [focus, setFocus] = useState(0);
   const { data: nss = [] } = useNamespaces();
   const ui = useUi();
   const now = useNow();
-  const from = week.toISOString();
-  const to = addDays(week, 7).toISOString();
+  // week is the calendar day of a Monday; the range runs between that week's midnights in the
+  // profile timezone, as the server's day report has them.
+  const from = startOfDay(week).toISOString();
+  const to = startOfDay(addDays(week, 7)).toISOString();
   const { data: report } = useReport(from, to, group);
   const { data: entries = [] } = useEntries(from, to);
   const { deleteEntry } = useActions();
@@ -52,7 +54,7 @@ export function TimePage() {
   const byDay = useMemo(() => {
     const m = new Map<string, TimeEntry[]>();
     for (const e of entries) {
-      const d = isoDate(new Date(e.started_at));
+      const d = dateOf(e.started_at);
       m.set(d, [...(m.get(d) ?? []), e]);
     }
     return [...m];
@@ -65,7 +67,7 @@ export function TimePage() {
   useHotkeys([
     { keys: '[', description: 'Previous week', group: 'Time', run: () => setWeek((w) => addDays(w, -7)) },
     { keys: ']', description: 'Next week', group: 'Time', run: () => setWeek((w) => addDays(w, 7)) },
-    { keys: '.', description: 'This week', group: 'Time', run: () => setWeek(startOfWeek(new Date())) },
+    { keys: '.', description: 'This week', group: 'Time', run: () => setWeek(startOfWeek(todayDate())) },
     { keys: 'v', description: 'Cycle report grouping', group: 'Time', run: () => setGroup((g) => groups[(groups.indexOf(g) + 1) % groups.length]) },
     { keys: 'a', description: 'Add time entry', group: 'Time', run: () => setEditing('new') },
     { keys: 'j', description: 'Next entry', group: 'Time', run: () => setFocus((f) => Math.min(f + 1, flat.length - 1)) },
@@ -96,7 +98,7 @@ export function TimePage() {
             <ChevronRightIcon />
           </IconButton>
         </Tooltip>
-        <Button size="small" onClick={() => setWeek(startOfWeek(new Date()))}>
+        <Button size="small" onClick={() => setWeek(startOfWeek(todayDate()))}>
           This week (.)
         </Button>
         <Box sx={{ flex: 1 }} />
@@ -190,6 +192,8 @@ function EntryDialog({ entry, onClose }: { entry: TimeEntry | null; onClose: () 
   const ui = useUi();
   const [start, setStart] = useState(() => toLocalInput(entry?.started_at ?? new Date(Date.now() - 3600000).toISOString()));
   const [stop, setStop] = useState(() => toLocalInput(entry?.stopped_at ?? (entry ? null : new Date().toISOString())));
+  // The fields hold minutes; bounds left as they were are not sent back, so they keep their seconds.
+  const [initial] = useState({ start, stop });
   const [note, setNote] = useState(entry?.note ?? '');
   const [task, setTask] = useState<Task | null>(null);
   const [options, setOptions] = useState<Task[]>([]);
@@ -204,7 +208,11 @@ function EntryDialog({ entry, onClose }: { entry: TimeEntry | null; onClose: () 
     const started_at = fromLocalInput(start)!;
     const stopped_at = fromLocalInput(stop) ?? undefined;
     const opts = { onSuccess: onClose, onError: (e: unknown) => ui.notify(errorMessage(e)) };
-    if (entry) updateEntry.mutate({ id: entry.id, started_at, stopped_at, note }, opts);
+    if (entry)
+      updateEntry.mutate(
+        { id: entry.id, started_at: start !== initial.start ? started_at : undefined, stopped_at: stop !== initial.stop ? stopped_at : undefined, note },
+        opts,
+      );
     else if (task && stopped_at) createEntry.mutate({ task_id: task.id, started_at, stopped_at, note }, opts);
   };
 
