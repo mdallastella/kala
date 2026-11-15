@@ -95,8 +95,14 @@ export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** Opens an authenticated SSE stream; returns a function that closes it. */
-export function streamEvents(onEvent: (type: string, data: unknown) => void, onOpen: () => void): () => void {
+/** A stream that lasted this long ended in good order (the server closes it when the token expires). */
+const STREAM_SETTLED = 5000;
+
+/**
+ * Opens an authenticated SSE stream; returns a function that closes it. onClose reports a lost
+ * connection, and is not called when a stream that had settled is simply reopened.
+ */
+export function streamEvents(onEvent: (type: string, data: unknown) => void, onOpen: () => void, onClose: () => void): () => void {
   const ctrl = new AbortController();
   let delay = 1000;
   const loop = async () => {
@@ -106,6 +112,7 @@ export function streamEvents(onEvent: (type: string, data: unknown) => void, onO
         if (res.status === 401 && (await refreshSession())) res = await raw('/events', { signal: ctrl.signal });
         if (!res.ok || !res.body) throw new Error(`events: ${res.status}`);
         delay = 1000;
+        const opened = Date.now();
         onOpen();
         const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
         let buf = '';
@@ -126,9 +133,11 @@ export function streamEvents(onEvent: (type: string, data: unknown) => void, onO
             if (data || type !== 'message') onEvent(type, data ? JSON.parse(data) : null);
           }
         }
+        if (Date.now() - opened >= STREAM_SETTLED) continue;
       } catch {
         if (ctrl.signal.aborted) return;
       }
+      onClose();
       await new Promise((r) => setTimeout(r, delay));
       delay = Math.min(delay * 2, 30000);
     }
