@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestClientIP(t *testing.T) {
 	}
 	for _, tc := range cases {
 		s := &Server{cfg: config.Config{TrustProxy: tc.trust}}
-		r := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+		r := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/auth/login", nil)
 		r.RemoteAddr = "192.0.2.1:4711"
 		if tc.xff != "" {
 			r.Header.Set("X-Forwarded-For", tc.xff)
