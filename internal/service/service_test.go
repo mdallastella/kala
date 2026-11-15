@@ -417,10 +417,14 @@ func TestTrashAndExport(t *testing.T) {
 }
 
 func TestRefreshRotation(t *testing.T) {
-	s, _ := newService(t)
+	s, c := newService(t)
 	ctx := context.Background()
 	uid := register(t, s, "a@example.com")
 	tok, err := s.IssueRefresh(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.IssueRefresh(ctx, uid) // another device
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,12 +432,38 @@ func TestRefreshRotation(t *testing.T) {
 	if err != nil || got != uid {
 		t.Fatalf("rotate: %v %v", got, err)
 	}
-	// Reusing the old token revokes the whole family.
-	if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
-		t.Fatalf("reuse: want auth error, got %v", err)
+	// A second tab presenting the same token moments later is a race, not
+	// theft: it gets its own token and nothing is revoked.
+	c.advance(2 * time.Second)
+	got, sibling, err := s.RotateRefresh(ctx, tok)
+	if err != nil || got != uid || sibling == "" || sibling == next {
+		t.Fatalf("reuse within the grace window: %v %q %v", got, sibling, err)
 	}
-	if _, _, err := s.RotateRefresh(ctx, next); !service.IsCode(err, service.CodeAuth) {
-		t.Fatalf("after reuse the new token must be revoked too, got %v", err)
+	if _, next, err = s.RotateRefresh(ctx, next); err != nil {
+		t.Fatalf("first tab's token after the race: %v", err)
+	}
+	// Reusing it after the grace window revokes every session of the user.
+	c.advance(service.RefreshGrace + time.Second)
+	if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
+		t.Fatalf("late reuse: want auth error, got %v", err)
+	}
+	for name, tok := range map[string]string{"rotated": next, "sibling": sibling, "other device": other} {
+		if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
+			t.Errorf("after late reuse the %s token must be revoked, got %v", name, err)
+		}
+	}
+
+	// Logging out right after a rotation ends the old token's grace too.
+	tok, _ = s.IssueRefresh(ctx, uid)
+	_, next, err = s.RotateRefresh(ctx, tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RevokeRefresh(ctx, next); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.RotateRefresh(ctx, tok); !service.IsCode(err, service.CodeAuth) {
+		t.Fatalf("rotated token after logout: want auth error, got %v", err)
 	}
 }
 
