@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dueLabel, isoDate } from './format';
+import { dateOf, dueLabel, isoDate, setZone, timeLabel, todayDate } from './format';
 import { completeToken, currentToken, searchQuery, suggestions, tagColor } from './quickadd';
 import { normalizeBaseUrl, originPattern } from './settings';
 
@@ -50,5 +50,18 @@ describe('format', () => {
     expect(dueLabel('2026-10-21', today)).toBe('Today');
     expect(dueLabel('2026-10-22', today)).toBe('Tomorrow');
     expect(isoDate(today)).toBe('2026-10-21');
+  });
+  it('takes the day from the profile timezone', () => {
+    setZone('Asia/Tokyo');
+    try {
+      expect(dateOf('2026-10-21T14:59:59Z')).toBe('2026-10-21');
+      expect(dateOf('2026-10-21T15:00:00Z')).toBe('2026-10-22');
+      const now = new Date('2026-10-21T16:00:00Z').getTime(); // already the 22nd in Tokyo
+      expect(isoDate(todayDate(now))).toBe('2026-10-22');
+      expect(dueLabel('2026-10-22', todayDate(now))).toBe('Today');
+      expect(timeLabel('2026-10-21T15:30:00Z', todayDate(now))).not.toContain('Yesterday');
+    } finally {
+      setZone(undefined);
+    }
   });
 });

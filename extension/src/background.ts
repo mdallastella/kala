@@ -1,14 +1,14 @@
-import type { ApiResponse, CachedTags, Request } from './lib/messages';
+import type { ApiResponse, CachedTags, CachedZone, Request } from './lib/messages';
 import { getSettings, originPattern } from './lib/settings';
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === 'install' && !(await getSettings())) await chrome.runtime.openOptionsPage();
 });
 
-// A different server or token invalidates the cached tags and timer dot.
+// A different server or token invalidates the cached tags, timezone and timer dot.
 chrome.storage.onChanged.addListener((_, area) => {
   if (area !== 'local') return;
-  void chrome.storage.session.remove('tags');
+  void chrome.storage.session.remove(['tags', 'zone']);
   void setTimerDot(false).then(refreshTimerDot);
 });
 
@@ -73,6 +73,7 @@ async function callApi(method: string, path: string, body: unknown): Promise<Api
     return { ok: false, status: res.status, error };
   }
   if (method === 'GET' && path === '/tags') await chrome.storage.session.set({ tags: parsed });
+  if (method === 'GET' && path === '/me') await chrome.storage.session.set({ zone: (parsed as { timezone?: string }).timezone ?? null });
   if (method === 'GET' && path === '/timers/active') await setTimerDot((parsed as unknown[]).length > 0);
   else if (method === 'POST' && /^\/(timers|tasks\/\d+\/timer)\//.test(path)) void refreshTimerDot();
   return { ok: true, status: res.status, body: parsed };
@@ -92,6 +93,10 @@ async function handle(msg: Request): Promise<unknown> {
     case 'cached-tags': {
       const { tags } = await chrome.storage.session.get('tags');
       return (tags ?? null) as CachedTags;
+    }
+    case 'cached-zone': {
+      const { zone } = await chrome.storage.session.get('zone');
+      return (zone ?? null) as CachedZone;
     }
   }
 }

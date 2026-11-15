@@ -1,6 +1,35 @@
-// Date labels ported from web/src/lib/format.ts.
+// Date labels ported from web/src/lib/format.ts; keep them in step.
 
-/** Local calendar date as YYYY-MM-DD. */
+// Which calendar day an instant falls on is decided in the profile timezone, like the server's
+// filters and digests. Times of day are shown in the browser's.
+let zone: string | undefined;
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** Sets the profile timezone; undefined falls back to the browser's. */
+export function setZone(tz: string | undefined) {
+  zone = tz;
+}
+
+/** Calendar date (YYYY-MM-DD) of an instant in the profile timezone. */
+export function dateOf(t: Date | string | number): string {
+  const d = new Date(t);
+  if (!zone) return isoDate(d);
+  let f = zoneFormats.get(zone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: 'numeric', day: 'numeric' });
+    zoneFormats.set(zone, f);
+  }
+  const p: Record<string, number> = {};
+  for (const { type, value } of f.formatToParts(d)) p[type] = Number(value);
+  return isoDate(new Date(p.year, p.month - 1, p.day));
+}
+
+/** Today in the profile timezone, as a calendar-day Date for isoDate and addDays. */
+export function todayDate(now: number = Date.now()): Date {
+  return parseDate(dateOf(now));
+}
+
+/** Calendar date of a calendar-day Date as YYYY-MM-DD. */
 export function isoDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -18,7 +47,7 @@ export function parseDate(s: string): Date {
 }
 
 /** Human label for a due date relative to today. */
-export function dueLabel(s: string, today = new Date()): string {
+export function dueLabel(s: string, today = todayDate()): string {
   const t = isoDate(today);
   if (s === t) return 'Today';
   if (s === isoDate(addDays(today, 1))) return 'Tomorrow';
@@ -32,10 +61,10 @@ export function dueLabel(s: string, today = new Date()): string {
 }
 
 /** Time of day on a 24h clock, plus the day when it isn't today. */
-export function timeLabel(iso: string, today = new Date()): string {
+export function timeLabel(iso: string, today = todayDate()): string {
   const d = new Date(iso);
   const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  return isoDate(d) === isoDate(today) ? time : `${dueLabel(isoDate(d), today)} ${time}`;
+  return dateOf(d) === isoDate(today) ? time : `${dueLabel(dateOf(d), today)} ${time}`;
 }
 
 /** Formats seconds as 1h 05m / 12m / 45s. */
@@ -50,6 +79,6 @@ export function duration(secs: number): string {
 
 export function dateTimeLabel(iso: string): string {
   const d = new Date(iso);
-  const day = dueLabel(isoDate(d));
+  const day = dueLabel(dateOf(d));
   return `${day} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
 }
