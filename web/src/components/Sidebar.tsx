@@ -12,7 +12,7 @@ import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import { useMemo, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import { useActions, useNamespaces, useTags } from '../api/hooks';
 import { useTaskDrop } from '../lib/dnd';
@@ -82,7 +82,6 @@ function DeleteTagButton({ tag, selected }: { tag: Tag; selected: boolean }) {
 /** `listed` holds the tags that are listed namespace values: managed in Settings, so no bin. */
 function TreeItem({ node, depth, current, listed }: { node: TagNode; depth: number; current: string; listed: Set<string> }) {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   const map = useTagMap();
   const q = tagQuery(node.name);
   const hasKids = node.children.length > 0;
@@ -99,7 +98,15 @@ function TreeItem({ node, depth, current, listed }: { node: TagNode; depth: numb
             </IconButton>
           )}
         </Box>
-        <ListItemButton dense selected={current === q} sx={{ pl: 0.5, py: 0.25, ...dropSx(drop.over) }} onClick={() => navigate(tasksPath(q))} {...drop.props}>
+        <ListItemButton
+          dense
+          component={Link}
+          to={tasksPath(q)}
+          selected={current === q}
+          aria-current={current === q ? 'page' : undefined}
+          sx={{ pl: 0.5, py: 0.25, ...dropSx(drop.over) }}
+          {...drop.props}
+        >
           <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tagColor(node.name, map), mr: 1, flexShrink: 0 }} />
           <ListItemText primary={node.label} slotProps={{ primary: { noWrap: true, variant: 'body2' } }} />
           <Count n={node.open} />
@@ -118,11 +125,18 @@ function TreeItem({ node, depth, current, listed }: { node: TagNode; depth: numb
 }
 
 function PinnedItem({ tag, current }: { tag: Tag; current: string }) {
-  const navigate = useNavigate();
   const drop = useTagDrop(tag.name);
   const q = tagQuery(tag.name);
   return (
-    <ListItemButton dense selected={current === q} sx={dropSx(drop.over)} onClick={() => navigate(tasksPath(q))} {...drop.props}>
+    <ListItemButton
+      dense
+      component={Link}
+      to={tasksPath(q)}
+      selected={current === q}
+      aria-current={current === q ? 'page' : undefined}
+      sx={dropSx(drop.over)}
+      {...drop.props}
+    >
       <ListItemIcon>
         <PushPinOutlinedIcon fontSize="small" />
       </ListItemIcon>
@@ -186,7 +200,6 @@ function Section({ id, icon, label, children }: { id: string; icon: React.ReactN
 
 export function Sidebar() {
   const { data: tags = [] } = useTags();
-  const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
   const current = location.pathname === '/tasks' ? (params.get('q') ?? '') : '';
@@ -231,18 +244,22 @@ export function Sidebar() {
   };
   const isSystem = (ns: string) => ns === 'status' || ns === 'priority';
 
-  const nav = (path: string, label: string, icon: React.ReactNode, hint: string) => (
-    <ListItemButton dense selected={location.pathname === path && !current} onClick={() => navigate(path)}>
-      <ListItemIcon>{icon}</ListItemIcon>
-      <ListItemText primary={label} />
-      <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
-        {hint}
-      </Typography>
-    </ListItemButton>
-  );
+  const nav = (path: string, label: string, icon: React.ReactNode, hint: string) => {
+    const selected = location.pathname === path && !current;
+    return (
+      <ListItemButton dense component={Link} to={path} selected={selected} aria-current={selected ? 'page' : undefined}>
+        <ListItemIcon>{icon}</ListItemIcon>
+        <ListItemText primary={label} />
+        <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
+          {hint}
+        </Typography>
+      </ListItemButton>
+    );
+  };
+
 
   return (
-    <Box sx={{ overflowY: 'auto', height: '100%', pb: 2 }}>
+    <Box component="nav" aria-label="Primary" sx={{ overflowY: 'auto', height: '100%', pb: 2 }}>
       <List dense>
         {nav('/', 'Home', <HomeOutlinedIcon fontSize="small" />, 'g h')}
         {nav('/tasks', 'Tasks', <ChecklistIcon fontSize="small" />, 'g t')}

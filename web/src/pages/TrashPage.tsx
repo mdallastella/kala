@@ -7,11 +7,13 @@ import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
 import { fullDateTime } from '../lib/format';
 import { chipTags } from '../lib/tags';
+import { usePageTitle } from '../lib/usePageTitle';
 
 export function TrashPage() {
   const { data: tasks = [] } = useTrash();
   const { restore, purge } = useActions();
   const ui = useUi();
+  usePageTitle('Trash');
   const [rawFocus, setFocus] = useState(0);
   const focus = Math.min(rawFocus, Math.max(tasks.length - 1, 0));
   const current = tasks[focus];

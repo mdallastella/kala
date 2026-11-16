@@ -38,26 +38,30 @@ export function TimerStrip() {
   if (timers.length === 0) return null;
   return (
     <Box sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', minWidth: 0, maxWidth: '45vw' }}>
-      {timers.map((e) => (
-        <Tooltip key={e.id} title="Stop timer">
-          <Chip
-            color="primary"
-            variant="outlined"
-            icon={<StopIcon />}
-            onClick={() => stop.mutate(e.task_id)}
-            label={
-              <Box component="span" sx={{ display: 'inline-flex', gap: 1 }}>
-                <Box component="span" sx={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {e.task_title}
+      {timers.map((e) => {
+        const elapsed = clock((now - new Date(e.started_at).getTime()) / 1000);
+        return (
+          <Tooltip key={e.id} title="Stop timer" describeChild>
+            <Chip
+              aria-label={`Stop timer: ${e.task_title} ${elapsed}`}
+              color="primary"
+              variant="outlined"
+              icon={<StopIcon />}
+              onClick={() => stop.mutate(e.task_id)}
+              label={
+                <Box component="span" sx={{ display: 'inline-flex', gap: 1 }}>
+                  <Box component="span" sx={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {e.task_title}
+                  </Box>
+                  <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                    {elapsed}
+                  </Box>
                 </Box>
-                <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-                  {clock((now - new Date(e.started_at).getTime()) / 1000)}
-                </Box>
-              </Box>
-            }
-          />
-        </Tooltip>
-      ))}
+              }
+            />
+          </Tooltip>
+        );
+      })}
     </Box>
   );
 }

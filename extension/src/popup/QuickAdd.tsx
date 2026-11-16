@@ -161,6 +161,9 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
     return (
       <li
         key={t.id}
+        id={`row-${i}`}
+        role="option"
+        aria-selected={i === pick}
         class={i === pick ? 'item task selected' : 'item task'}
         onMouseMove={() => setPick(i)}
         onMouseDown={(e) => {
@@ -168,7 +171,9 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
           void act(t, e.shiftKey);
         }}
       >
-        <span class="key">{key}</span>
+        <span class="key" aria-hidden="true">
+          {key}
+        </span>
         <span class="body">
           <span class="label">{t.title}</span>
           {hint && <span class="label hint">{hint}</span>}
@@ -187,6 +192,13 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
           class="input"
           placeholder="Write report #client:acme @kala !high due:fri remind:thu 9:00"
           aria-label="Quick add"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={suggestions.length > 0 || rows.length > 0}
+          aria-controls={suggestions.length > 0 ? 'suggestions' : 'timers matches'}
+          aria-activedescendant={suggestions.length > 0 ? `suggestion-${sel}` : pick >= 0 ? `row-${pick}` : undefined}
+          aria-invalid={!!error}
+          aria-describedby="status"
           value={text}
           readOnly={busy}
           onInput={(e: TargetedEvent<HTMLInputElement>) => {
@@ -204,10 +216,13 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
         />
       </div>
       {suggestions.length > 0 && (
-        <ul class="list suggestions">
+        <ul id="suggestions" class="list suggestions" role="listbox" aria-label="Suggestions">
           {suggestions.map((s, i) => (
             <li
               key={s}
+              id={`suggestion-${i}`}
+              role="option"
+              aria-selected={i === sel}
               class={i === sel ? 'item selected' : 'item'}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -222,9 +237,9 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
           ))}
         </ul>
       )}
-      <div class="preview">
+      <div id="status" class="preview">
         {error ? (
-          <span class="error">{setupError ? `${setupError} · Enter opens settings` : error}</span>
+          <span class="error" role="alert">{setupError ? `${setupError} · Enter opens settings` : error}</span>
         ) : rows[pick] ? (
           <span class="caption">
             Enter opens “{rows[pick].title}” in kala · Shift+Enter {running.has(rows[pick].id) ? 'stops' : 'starts'} its timer · ↑ back to adding
@@ -254,14 +269,14 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
         )}
       </div>
       {timers.length > 0 && (
-        <ul class="list matches" aria-label="Running timers">
-          <li class="section">Running timers · Shift+Enter stops</li>
+        <ul id="timers" class="list matches" role="listbox" aria-label="Running timers">
+          <li class="section" role="presentation">Running timers · Shift+Enter stops</li>
           {timers.map((e, i) => row(rows[i], i, '▶', `since ${timeLabel(e.started_at)}`))}
         </ul>
       )}
       {matches.length > 0 && (
-        <ul class="list matches" aria-label="Existing tasks">
-          <li class="section">{empty ? 'Recent tasks' : 'Existing tasks'} · ↓ or Alt+number to pick</li>
+        <ul id="matches" class="list matches" role="listbox" aria-label="Existing tasks">
+          <li class="section" role="presentation">{empty ? 'Recent tasks' : 'Existing tasks'} · ↓ or Alt+number to pick</li>
           {matches.map((t, i) => row(t, timers.length + i, String(i + 1)))}
         </ul>
       )}

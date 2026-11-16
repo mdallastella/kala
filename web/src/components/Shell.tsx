@@ -167,6 +167,7 @@ export function Shell() {
                   ),
                   sx: { fontFamily: 'ui-monospace, monospace', fontSize: 13 },
                 },
+                htmlInput: { 'aria-label': 'Filter tasks' },
               }}
             />
             <Box sx={{ flex: 1 }} />
@@ -190,7 +191,11 @@ export function Shell() {
               </IconButton>
             </Tooltip>
             <Tooltip title={connected ? 'Live updates connected' : 'Reconnecting…'}>
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: connected ? 'success.main' : 'warning.main' }} />
+              <Box
+                role="status"
+                aria-label={connected ? 'Live updates connected' : 'Reconnecting…'}
+                sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: connected ? 'success.main' : 'warning.main' }}
+              />
             </Tooltip>
           </Toolbar>
         </AppBar>

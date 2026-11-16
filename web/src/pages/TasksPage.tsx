@@ -12,6 +12,7 @@ import { useUi } from '../components/ui';
 import { useHotkeys, type Binding } from '../keys/hotkeys';
 import { dragTasks } from '../lib/dnd';
 import { namespaceValues, statusOf } from '../lib/tags';
+import { usePageTitle } from '../lib/usePageTitle';
 
 interface Props {
   /** Fixed filter, used instead of the URL's (the home page embeds the list). */
@@ -25,6 +26,8 @@ export function TasksPage({ query, title = 'Tasks' }: Props) {
   const q = query ?? current.q;
   const ui = useUi();
   const taskId = Number(params.get('task')) || null;
+  // The home page embeds this list and sets its own title.
+  usePageTitle(query == null ? q || undefined : null, 'Tasks');
 
   const { data: tasks = [], error, isPending } = useTasks(q);
   const { data: nss } = useNamespaces();

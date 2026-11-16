@@ -2,16 +2,18 @@ import { Box, Button, IconButton, Tooltip, Typography } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import { useActions, useTasks } from '../api/hooks';
 import type { Task } from '../api/types';
+import { visuallyHidden } from '../components/a11y';
 import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
 import { dragTasks, useTaskDrop } from '../lib/dnd';
 import { addDays, isoDate, monthGrid, todayDate } from '../lib/format';
 import { PRIORITY_COLORS } from '../lib/tags';
 import { tasksPath } from '../lib/useCurrentQuery';
+import { usePageTitle } from '../lib/usePageTitle';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -23,14 +25,16 @@ function useDueDrop(due: string | null) {
 }
 
 function CalendarTask({ task }: { task: Task }) {
-  const navigate = useNavigate();
   const closed = task.closed_at != null;
   return (
     <Box
+      component={Link}
+      to={tasksPath(undefined, task.id)}
       draggable
-      onDragStart={(e) => dragTasks(e, [task.id])}
-      onClick={() => navigate(tasksPath(undefined, task.id))}
+      onDragStart={(e: React.DragEvent) => dragTasks(e, [task.id])}
       sx={{
+        color: 'inherit',
+        textDecoration: 'none',
         display: 'flex',
         alignItems: 'center',
         gap: 0.5,
@@ -38,6 +42,7 @@ function CalendarTask({ task }: { task: Task }) {
         borderRadius: 0.5,
         cursor: 'pointer',
         '&:hover': { bgcolor: 'action.hover' },
+        '&:focus-visible': { outline: 2, outlineColor: 'primary.main', outlineOffset: -2 },
       }}
     >
       <Box
@@ -87,7 +92,10 @@ function DayCell({ day, tasks, inMonth, today, focused, onFocus }: { day: string
           bgcolor: today ? 'primary.main' : undefined,
         }}
       >
-        {Number(day.slice(8))}
+        <span aria-hidden>{Number(day.slice(8))}</span>
+        <Box component="span" sx={visuallyHidden}>
+          {new Date(`${day}T00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+        </Box>
       </Typography>
       {tasks.map((t) => (
         <CalendarTask key={t.id} task={t} />
@@ -118,6 +126,7 @@ function Unscheduled({ q }: { q: string }) {
 }
 
 export function CalendarPage() {
+  usePageTitle('Calendar');
   const [params] = useSearchParams();
   const q = params.get('q') ?? 'is:open';
   const navigate = useNavigate();
@@ -155,7 +164,7 @@ export function CalendarPage() {
             Calendar
           </Typography>
           <Tooltip title="Previous month ([)">
-            <IconButton size="small" onClick={() => shiftMonth(-1)}>
+            <IconButton size="small" aria-label="Previous month" onClick={() => shiftMonth(-1)}>
               <ChevronLeftIcon />
             </IconButton>
           </Tooltip>
@@ -163,7 +172,7 @@ export function CalendarPage() {
             {focus.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
           </Typography>
           <Tooltip title="Next month (])">
-            <IconButton size="small" onClick={() => shiftMonth(1)}>
+            <IconButton size="small" aria-label="Next month" onClick={() => shiftMonth(1)}>
               <ChevronRightIcon />
             </IconButton>
           </Tooltip>

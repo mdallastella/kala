@@ -34,6 +34,7 @@ import { useUi } from '../components/ui';
 import { useHotkeys } from '../keys/hotkeys';
 import { addDays, dateOf, dueLabel, duration, fromLocalInput, startOfDay, startOfWeek, timeLabel, todayDate, toLocalInput } from '../lib/format';
 import { chipTags } from '../lib/tags';
+import { usePageTitle } from '../lib/usePageTitle';
 
 export function TimePage() {
   const [week, setWeek] = useState(() => startOfWeek(todayDate()));
@@ -43,6 +44,7 @@ export function TimePage() {
   const { data: nss = [] } = useNamespaces();
   const ui = useUi();
   const now = useNow();
+  usePageTitle('Time');
   // week is the calendar day of a Monday; the range runs between that week's midnights in the
   // profile timezone, as the server's day report has them.
   const from = startOfDay(week).toISOString();

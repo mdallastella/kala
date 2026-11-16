@@ -9,6 +9,7 @@ import { useNow } from '../components/TimerStrip';
 import { useUi } from '../components/ui';
 import { ago, clock } from '../lib/format';
 import { tasksPath } from '../lib/useCurrentQuery';
+import { usePageTitle } from '../lib/usePageTitle';
 import { TasksPage } from './TasksPage';
 
 const RECENT = 8;
@@ -44,6 +45,7 @@ export function DashboardPage() {
   const { start, stop } = useActions();
   const ui = useUi();
   const now = useNow();
+  usePageTitle();
 
   // The task list used to live here; keep old filter links working.
   const legacyQuery = params.get('q');
