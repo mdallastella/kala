@@ -29,13 +29,14 @@ import { setZone } from '../lib/format';
 import { projectFromQuery } from '../lib/tags';
 import { tasksPath, useCurrentQuery } from '../lib/useCurrentQuery';
 import { CommandPalette, type Command } from './CommandPalette';
+import { ConfirmDialog } from './ConfirmDialog';
 import { DatePrompt } from './DatePrompt';
 import { Notifications } from './Notifications';
 import { QuickAdd } from './QuickAdd';
 import { Sidebar, tagQuery } from './Sidebar';
 import { TagPicker } from './TagPicker';
 import { TimerStrip, useTimerFavicon } from './TimerStrip';
-import { UiContext, type NotifyAction, type Ui } from './ui';
+import { UiContext, type ConfirmOptions, type NotifyAction, type Ui } from './ui';
 
 const DRAWER = 248;
 
@@ -63,6 +64,7 @@ export function Shell() {
   const [help, setHelp] = useState(false);
   const [tagPick, setTagPick] = useState<{ tasks: Task[]; mode: 'tags' | 'project' } | null>(null);
   const [datePick, setDatePick] = useState<{ tasks: Task[]; kind: 'due' | 'remind' } | null>(null);
+  const [confirmReq, setConfirmReq] = useState<{ opts: ConfirmOptions; resolve: (ok: boolean) => void } | null>(null);
   const { q: currentQuery } = useCurrentQuery();
   // Draft filter text while the user edits it; null shows the current query.
   const [draft, setDraft] = useState<string | null>(null);
@@ -70,6 +72,7 @@ export function Shell() {
   const filterRef = useRef<HTMLInputElement>(null);
 
   const notify = useCallback((message: string, action?: NotifyAction) => setToast({ key: Date.now(), message, action }), []);
+  const confirm = useCallback((opts: ConfirmOptions) => new Promise<boolean>((resolve) => setConfirmReq({ opts, resolve })), []);
 
   const ui: Ui = useMemo(
     () => ({
@@ -82,9 +85,10 @@ export function Shell() {
       help: () => setHelp(true),
       pickTags: (tasks, mode = 'tags') => setTagPick({ tasks, mode }),
       pickDate: (tasks, kind) => setDatePick({ tasks, kind }),
+      confirm,
       currentQuery,
     }),
-    [notify, currentQuery],
+    [notify, confirm, currentQuery],
   );
 
   const toggleTheme = () => setMode(dark ? 'light' : 'dark');
@@ -167,6 +171,7 @@ export function Shell() {
                   ),
                   sx: { fontFamily: 'ui-monospace, monospace', fontSize: 13 },
                 },
+                htmlInput: { 'aria-label': 'Filter tasks' },
               }}
             />
             <Box sx={{ flex: 1 }} />
@@ -190,7 +195,11 @@ export function Shell() {
               </IconButton>
             </Tooltip>
             <Tooltip title={connected ? 'Live updates connected' : 'Reconnecting…'}>
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: connected ? 'success.main' : 'warning.main' }} />
+              <Box
+                role="status"
+                aria-label={connected ? 'Live updates connected' : 'Reconnecting…'}
+                sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: connected ? 'success.main' : 'warning.main' }}
+              />
             </Tooltip>
           </Toolbar>
         </AppBar>
@@ -216,6 +225,15 @@ export function Shell() {
       )}
       <HelpDialog open={help} onClose={() => setHelp(false)} />
       {tagPick && <TagPicker tasks={tagPick.tasks} mode={tagPick.mode} onClose={() => setTagPick(null)} onError={notify} />}
+      {confirmReq && (
+        <ConfirmDialog
+          {...confirmReq.opts}
+          onAnswer={(ok) => {
+            confirmReq.resolve(ok);
+            setConfirmReq(null);
+          }}
+        />
+      )}
       {datePick && <DatePrompt tasks={datePick.tasks} kind={datePick.kind} onClose={() => setDatePick(null)} onError={notify} />}
       <Notifications onConnected={onConnected} />
       <Snackbar

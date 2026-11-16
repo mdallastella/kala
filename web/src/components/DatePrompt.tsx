@@ -111,6 +111,7 @@ export function DatePrompt({ tasks, kind, onClose, onError }: Props) {
             }}
             error={!!error}
             helperText={error || shown}
+            slotProps={{ formHelperText: { role: error ? 'alert' : undefined } }}
           />
           {kind === 'due' ? (
             <TextField type="date" label="Pick a date" value={value ?? ''} onChange={(e) => pick(e.target.value || null)} slotProps={{ inputLabel: { shrink: true } }} />

@@ -34,6 +34,7 @@ import { TagChip } from '../components/TagChip';
 import { useUi } from '../components/ui';
 import { ClockField } from '../components/DateTimeField';
 import { fullDateTime } from '../lib/format';
+import { usePageTitle } from '../lib/usePageTitle';
 
 function Section({ title, children, hint }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -52,6 +53,7 @@ function Section({ title, children, hint }: { title: string; hint?: string; chil
 }
 
 export function SettingsPage() {
+  usePageTitle('Settings');
   return (
     <Box sx={{ p: 2, overflowY: 'auto' }}>
       <Stack spacing={2} sx={{ maxWidth: 860 }}>
@@ -184,6 +186,7 @@ function Namespaces() {
 
 function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () => void }) {
   const { saveNamespace, deleteNamespace } = useActions();
+  const ui = useUi();
   const [name, setName] = useState(ns.name ?? '');
   const [exclusive, setExclusive] = useState(ns.exclusive ?? false);
   const [def, setDef] = useState(ns.default_value ?? '');
@@ -236,16 +239,16 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
               <Stack key={v.value} direction="row" sx={{ alignItems: 'center' }}>
                 <Typography sx={{ flex: 1 }}>{v.value}</Typography>
                 <FormControlLabel
-                  control={<Checkbox size="small" checked={v.terminal} onChange={(e) => setValues(values.map((x, j) => (j === i ? { ...x, terminal: e.target.checked } : x)))} />}
+                  control={<Checkbox size="small" slotProps={{ input: { 'aria-label': `${v.value} terminal` } }} checked={v.terminal} onChange={(e) => setValues(values.map((x, j) => (j === i ? { ...x, terminal: e.target.checked } : x)))} />}
                   label="terminal"
                 />
-                <IconButton size="small" onClick={() => move(i, -1)} aria-label="Move up">
+                <IconButton size="small" onClick={() => move(i, -1)} aria-label={`Move ${v.value} up`}>
                   <ArrowUpwardIcon fontSize="small" />
                 </IconButton>
-                <IconButton size="small" onClick={() => move(i, 1)} aria-label="Move down">
+                <IconButton size="small" onClick={() => move(i, 1)} aria-label={`Move ${v.value} down`}>
                   <ArrowDownwardIcon fontSize="small" />
                 </IconButton>
-                <IconButton size="small" onClick={() => setValues(values.filter((_, j) => j !== i))} aria-label="Remove value">
+                <IconButton size="small" onClick={() => setValues(values.filter((_, j) => j !== i))} aria-label={`Remove ${v.value}`}>
                   <DeleteOutlinedIcon fontSize="small" />
                 </IconButton>
               </Stack>
@@ -253,6 +256,7 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
             <TextField
               fullWidth
               placeholder="Add value and press Enter"
+              slotProps={{ htmlInput: { 'aria-label': 'New value' } }}
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               onKeyDown={(e) => {
@@ -278,7 +282,14 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
       </DialogContent>
       <DialogActions>
         {ns.id && (
-          <Button color="error" sx={{ mr: 'auto' }} onClick={() => window.confirm(`Delete the “${ns.name}” namespace? Its tags stay on tasks as free tags.`) && deleteNamespace.mutate(ns.id!, { onSuccess: onClose })}>
+          <Button
+            color="error"
+            sx={{ mr: 'auto' }}
+            onClick={async () => {
+              if (await ui.confirm({ title: `Delete the “${ns.name}” namespace?`, message: 'Its tags stay on tasks as free tags.' }))
+                deleteNamespace.mutate(ns.id!, { onSuccess: onClose });
+            }}
+          >
             Delete
           </Button>
         )}
@@ -307,7 +318,7 @@ function TagsSection() {
         return;
       }
       const list = preview.tags.slice(0, 20).join(', ') + (n > 20 ? `, … (${n - 20} more)` : '');
-      if (!window.confirm(`Delete ${n} unused tag${n === 1 ? '' : 's'}?\n\n${list}`)) return;
+      if (!(await ui.confirm({ title: `Delete ${n} unused tag${n === 1 ? '' : 's'}?`, message: list }))) return;
       const res = await cleanupTags.mutateAsync(true);
       ui.notify(`Deleted ${res.tags.length} unused tag${res.tags.length === 1 ? '' : 's'}`);
     } catch (e) {
@@ -320,7 +331,7 @@ function TagsSection() {
       hint="Colors are inherited by descendant tags. Renaming moves the whole subtree and merges into existing tags. Clean up deletes tags no task uses (trash included), except colored, pinned and namespace-value tags."
     >
       <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-        <TextField placeholder="Filter tags" value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ flex: 1 }} />
+        <TextField placeholder="Filter tags" slotProps={{ htmlInput: { 'aria-label': 'Filter tags' } }} value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ flex: 1 }} />
         <Button variant="outlined" onClick={() => void cleanup()} disabled={cleanupTags.isPending}>
           Clean up
         </Button>
@@ -341,19 +352,19 @@ function TagsSection() {
               onChange={(e) => setTagMeta.mutate({ name: t.name, color: e.target.value })}
               style={{ width: 28, height: 24, border: 'none', background: 'none' }}
             />
-            <IconButton size="small" onClick={() => setTagMeta.mutate({ name: t.name, pinned: !t.pinned })} aria-label="Pin to sidebar">
+            <IconButton size="small" onClick={() => setTagMeta.mutate({ name: t.name, pinned: !t.pinned })} aria-label={`Pin ${t.name} to sidebar`} aria-pressed={!!t.pinned}>
               {t.pinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
             </IconButton>
-            <IconButton size="small" onClick={() => setRenaming(t)} aria-label="Rename">
+            <IconButton size="small" onClick={() => setRenaming(t)} aria-label={`Rename ${t.name}`}>
               <EditOutlinedIcon fontSize="small" />
             </IconButton>
             <IconButton
               size="small"
-              aria-label="Delete"
-              onClick={() =>
-                window.confirm(`Remove “${t.name}” from all ${t.total} tasks?`) &&
-                deleteTag.mutate(t.id, { onError: (e) => ui.notify(errorMessage(e)) })
-              }
+              aria-label={`Delete ${t.name}`}
+              onClick={async () => {
+                if (await ui.confirm({ title: `Delete “${t.name}”?`, message: `It is removed from all ${t.total} tasks.` }))
+                  deleteTag.mutate(t.id, { onError: (e) => ui.notify(errorMessage(e)) });
+              }}
             >
               <DeleteOutlinedIcon fontSize="small" />
             </IconButton>
@@ -423,6 +434,7 @@ function RenameDialog({ tag, onClose }: { tag: Tag; onClose: () => void }) {
 function Tokens() {
   const { data: tokens = [] } = useTokens();
   const { createToken, revokeToken } = useActions();
+  const ui = useUi();
   const [name, setName] = useState('');
   const [created, setCreated] = useState<string | null>(null);
   const origin = window.location.origin;
@@ -448,7 +460,14 @@ function Tokens() {
             key={t.id}
             disableGutters
             secondaryAction={
-              <Button color="error" size="small" onClick={() => window.confirm(`Revoke “${t.name}”?`) && revokeToken.mutate(t.id)}>
+              <Button
+                color="error"
+                size="small"
+                aria-label={`Revoke ${t.name}`}
+                onClick={async () => {
+                  if (await ui.confirm({ title: `Revoke “${t.name}”?`, message: 'Clients using this token lose access.', confirmLabel: 'Revoke' })) revokeToken.mutate(t.id);
+                }}
+              >
                 Revoke
               </Button>
             }
@@ -461,7 +480,7 @@ function Tokens() {
         ))}
       </List>
       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-        <TextField placeholder="Token name, e.g. claude" value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField placeholder="Token name, e.g. claude" slotProps={{ htmlInput: { 'aria-label': 'Token name' } }} value={name} onChange={(e) => setName(e.target.value)} />
         <Button
           variant="outlined"
           disabled={!name.trim()}

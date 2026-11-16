@@ -1,6 +1,6 @@
 import { Box, Dialog, DialogContent, List, ListItemButton, TextField, Typography } from '@mui/material';
 import TimerIcon from '@mui/icons-material/Timer';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { errorMessage } from '../api/client';
 import { useActions, useNamespaces, useTags } from '../api/hooks';
 import { completeToken, currentToken, suggestions as suggest } from '../lib/quickadd';
@@ -20,6 +20,7 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const [shift, setShift] = useState(false);
   const [sel, setSel] = useState(0);
+  const id = useId();
   const { data: tags = [] } = useTags();
   const { data: nss = [] } = useNamespaces();
   const { create, startNew } = useActions();
@@ -63,7 +64,7 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
   };
 
   return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { position: 'fixed', top: '12vh', m: 0 } } }}>
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { 'aria-label': 'Quick add task', sx: { position: 'fixed', top: '12vh', m: 0 } } }}>
       <DialogContent sx={{ p: 2 }}>
         <TextField
           autoFocus
@@ -82,13 +83,33 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
               readOnly: busy,
               startAdornment: withTimer ? <TimerIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} /> : undefined,
             },
-            htmlInput: { 'aria-label': 'Quick add' },
+            htmlInput: {
+              'aria-label': 'Quick add',
+              role: 'combobox',
+              'aria-autocomplete': 'list',
+              'aria-expanded': suggestions.length > 0,
+              'aria-controls': `${id}-suggestions`,
+              'aria-activedescendant': suggestions.length > 0 ? `${id}-suggestion-${sel}` : undefined,
+              'aria-invalid': !!error,
+              'aria-describedby': `${id}-status`,
+            },
           }}
         />
         {suggestions.length > 0 && (
-          <List dense sx={{ mt: 0.5, border: 1, borderColor: 'divider', borderRadius: 1, py: 0 }}>
+          <List id={`${id}-suggestions`} role="listbox" aria-label="Suggestions" dense sx={{ mt: 0.5, border: 1, borderColor: 'divider', borderRadius: 1, py: 0 }}>
             {suggestions.map((s, i) => (
-              <ListItemButton key={s} selected={i === sel} onMouseDown={(e) => { e.preventDefault(); complete(s); }}>
+              <ListItemButton
+                key={s}
+                id={`${id}-suggestion-${i}`}
+                role="option"
+                aria-selected={i === sel}
+                tabIndex={-1}
+                selected={i === sel}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  complete(s);
+                }}
+              >
                 <Typography variant="body2">
                   {token?.prefix}
                   {s}
@@ -97,9 +118,9 @@ export function QuickAdd({ timer, prefill, onClose, onDone }: Props) {
             ))}
           </List>
         )}
-        <Box sx={{ mt: 1.5, minHeight: 28 }}>
+        <Box id={`${id}-status`} sx={{ mt: 1.5, minHeight: 28 }}>
           {error ? (
-            <Typography variant="body2" color="error">
+            <Typography variant="body2" color="error" role="alert">
               {error}
             </Typography>
           ) : preview ? (

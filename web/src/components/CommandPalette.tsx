@@ -1,5 +1,5 @@
 import { Box, Dialog, List, ListItemButton, ListItemText, ListSubheader, TextField, Typography } from '@mui/material';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { get } from '../api/client';
 import type { Task } from '../api/types';
 import { keyLabel } from '../keys/matcher';
@@ -36,6 +36,8 @@ export function CommandPalette({ prefill, commands, onOpenTask, onClose }: Props
   const [sel, setSel] = useState(0);
   const [found, setFound] = useState<Task[]>([]);
   const listRef = useRef<HTMLUListElement>(null);
+  const id = useId();
+  const optionId = (i: number) => `${id}-option-${i}`;
   const searchable = q.trim().length >= 2;
   const tasks = useMemo(() => (searchable ? found : []), [searchable, found]);
 
@@ -93,7 +95,7 @@ export function CommandPalette({ prefill, commands, onOpenTask, onClose }: Props
 
   let lastGroup = '';
   return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { position: 'fixed', top: '10vh', m: 0 } } }}>
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" slotProps={{ paper: { 'aria-label': 'Command palette', sx: { position: 'fixed', top: '10vh', m: 0 } } }}>
       <Box sx={{ p: 1.5, borderBottom: 1, borderColor: 'divider' }}>
         <TextField
           autoFocus
@@ -106,21 +108,43 @@ export function CommandPalette({ prefill, commands, onOpenTask, onClose }: Props
             setSel(0);
           }}
           onKeyDown={onKeyDown}
-          slotProps={{ input: { disableUnderline: true, sx: { fontSize: 16 } } }}
+          slotProps={{
+            input: { disableUnderline: true, sx: { fontSize: 16 } },
+            htmlInput: {
+              role: 'combobox',
+              'aria-label': 'Command, tag or task',
+              'aria-autocomplete': 'list',
+              'aria-expanded': items.length > 0,
+              'aria-controls': `${id}-list`,
+              'aria-activedescendant': items[sel] ? optionId(sel) : undefined,
+            },
+          }}
         />
       </Box>
-      <List ref={listRef} dense sx={{ maxHeight: '60vh', overflow: 'auto', py: 0 }}>
-        {items.length === 0 && (
-          <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-            Nothing matches.
-          </Typography>
-        )}
+      {items.length === 0 && (
+        <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+          Nothing matches.
+        </Typography>
+      )}
+      <List ref={listRef} id={`${id}-list`} role="listbox" aria-label="Results" dense sx={{ maxHeight: '60vh', overflow: 'auto', py: 0 }}>
         {items.map((c, i) => {
           const header = c.group !== lastGroup ? (lastGroup = c.group) : null;
           return (
-            <Box key={c.id}>
-              {header && <ListSubheader sx={{ lineHeight: '28px' }}>{header}</ListSubheader>}
-              <ListItemButton selected={i === sel} onClick={() => run(c)} onMouseMove={() => setSel(i)}>
+            <Fragment key={c.id}>
+              {header && (
+                <ListSubheader role="presentation" sx={{ lineHeight: '28px' }}>
+                  {header}
+                </ListSubheader>
+              )}
+              <ListItemButton
+                id={optionId(i)}
+                role="option"
+                aria-selected={i === sel}
+                tabIndex={-1}
+                selected={i === sel}
+                onClick={() => run(c)}
+                onMouseMove={() => setSel(i)}
+              >
                 <ListItemText primary={c.label} secondary={c.hint} slotProps={{ secondary: { noWrap: true } }} />
                 {c.keys && (
                   <Typography variant="caption" color="text.secondary" sx={{ ml: 2, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
@@ -128,7 +152,7 @@ export function CommandPalette({ prefill, commands, onOpenTask, onClose }: Props
                   </Typography>
                 )}
               </ListItemButton>
-            </Box>
+            </Fragment>
           );
         })}
       </List>

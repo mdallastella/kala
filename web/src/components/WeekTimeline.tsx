@@ -57,28 +57,34 @@ export function WeekTimeline({ entries, week, now, group, onSelect }: Props) {
               ))}
               {segs
                 .filter((s) => s.day === day)
-                .map((s) => (
-                  <Tooltip
-                    key={`${s.entry.id}-${s.day}`}
-                    title={`${s.entry.task_title} · ${timeLabel(s.entry.started_at)}–${s.entry.stopped_at ? timeLabel(s.entry.stopped_at) : 'now'} · ${duration((s.end - s.start) * 60)}`}
-                  >
-                    <Box
-                      onClick={() => onSelect(s.entry)}
-                      sx={{
-                        position: 'absolute',
-                        top: 3,
-                        bottom: 3,
-                        ...span(s.start, s.end),
-                        minWidth: 2,
-                        borderRadius: 0.5,
-                        cursor: 'pointer',
-                        bgcolor: tagColor(colorKey(s.entry), map),
-                        opacity: s.entry.stopped_at ? 0.85 : 1,
-                        '&:hover': { opacity: 1, outline: 1, outlineColor: 'text.primary' },
-                      }}
-                    />
-                  </Tooltip>
-                ))}
+                .map((s) => {
+                  const label = `${s.entry.task_title} · ${timeLabel(s.entry.started_at)}–${s.entry.stopped_at ? timeLabel(s.entry.stopped_at) : 'now'} · ${duration((s.end - s.start) * 60)}`;
+                  return (
+                    <Tooltip key={`${s.entry.id}-${s.day}`} title={label}>
+                      <Box
+                        component="button"
+                        type="button"
+                        aria-label={`Edit ${label}`}
+                        onClick={() => onSelect(s.entry)}
+                        sx={{
+                          p: 0,
+                          border: 0,
+                          position: 'absolute',
+                          top: 3,
+                          bottom: 3,
+                          ...span(s.start, s.end),
+                          minWidth: 2,
+                          borderRadius: 0.5,
+                          cursor: 'pointer',
+                          bgcolor: tagColor(colorKey(s.entry), map),
+                          opacity: s.entry.stopped_at ? 0.85 : 1,
+                          '&:hover': { opacity: 1, outline: 1, outlineColor: 'text.primary' },
+                          '&:focus-visible': { opacity: 1, outline: 2, outlineColor: 'text.primary' },
+                        }}
+                      />
+                    </Tooltip>
+                  );
+                })}
             </Box>,
           ];
         })}

@@ -12,6 +12,9 @@ import { clock, dateTimeLabel, dueLabel, duration, isOverdue } from '../lib/form
 import { chipTags, PRIORITY_COLORS, statusOf } from '../lib/tags';
 import { TagChip } from './TagChip';
 
+/** Exposes a status icon to screen readers (SvgIcon hides icons by default). */
+const named = (label: string) => ({ role: 'img', 'aria-hidden': false, 'aria-label': label });
+
 interface Props {
   task: Task;
   focused: boolean;
@@ -31,6 +34,7 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
   return (
     <ListItemButton
       data-task-id={task.id}
+      data-hotkeys
       className={focused ? 'kala-focused' : undefined}
       selected={selected || open}
       onClick={onClick}
@@ -52,7 +56,7 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
       <Box sx={{ width: 16, display: 'flex' }}>
         {prio && (
           <Tooltip title={task.priority_derived ? `${prio} · from due date` : prio}>
-            <FlagIcon sx={{ fontSize: 16, color: PRIORITY_COLORS[prio] ?? 'text.secondary', opacity: task.priority_derived ? 0.35 : 1 }} />
+            <FlagIcon {...named(`Priority ${prio}${task.priority_derived ? ' from due date' : ''}`)} sx={{ fontSize: 16, color: PRIORITY_COLORS[prio] ?? 'text.secondary', opacity: task.priority_derived ? 0.35 : 1 }} />
           </Tooltip>
         )}
       </Box>
@@ -64,20 +68,20 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
         >
           {task.title}
         </Typography>
-        {task.notes && <NotesIcon sx={{ fontSize: 14, color: 'text.disabled' }} />}
+        {task.notes && <NotesIcon {...named('Has notes')} sx={{ fontSize: 14, color: 'text.disabled' }} />}
         {status === 'pending' && (
           <Tooltip title="Pending">
-            <HourglassEmptyIcon sx={{ fontSize: 14, color: 'warning.main' }} />
+            <HourglassEmptyIcon {...named('Pending')} sx={{ fontSize: 14, color: 'warning.main' }} />
           </Tooltip>
         )}
         {status === 'delegated' && (
           <Tooltip title="Delegated">
-            <ForwardIcon sx={{ fontSize: 14, color: 'info.main' }} />
+            <ForwardIcon {...named('Delegated')} sx={{ fontSize: 14, color: 'info.main' }} />
           </Tooltip>
         )}
         {status === 'cancelled' && (
           <Tooltip title="Cancelled">
-            <BlockIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+            <BlockIcon {...named('Cancelled')} sx={{ fontSize: 14, color: 'text.disabled' }} />
           </Tooltip>
         )}
         <Box sx={{ display: 'flex', gap: 0.5, overflow: 'hidden', flexShrink: 2 }}>
@@ -88,7 +92,7 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
       </Box>
       {task.remind_at && !task.reminded_at && (
         <Tooltip title={`Reminder ${dateTimeLabel(task.remind_at)}`}>
-          <AlarmIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+          <AlarmIcon {...named(`Reminder ${dateTimeLabel(task.remind_at)}`)} sx={{ fontSize: 16, color: 'text.secondary' }} />
         </Tooltip>
       )}
       {task.running_since ? (
