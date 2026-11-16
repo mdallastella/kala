@@ -23,15 +23,20 @@ export function TagChip({ name, short, sx, ...rest }: Props) {
     <Chip
       label={label}
       variant="outlined"
-      sx={{
-        borderColor: alpha(color, 0.5),
-        color,
-        bgcolor: alpha(color, 0.08),
-        height: 20,
-        fontSize: 11.5,
-        '& .MuiChip-label': { px: 0.75 },
-        ...sx,
-      }}
+      sx={[
+        (theme) => ({
+          borderColor: alpha(color, 0.5),
+          // Tag colors are arbitrary: shade the text toward the theme's text color so the
+          // small label stays readable (>= 4.5:1 for the default palette in both schemes).
+          color: `color-mix(in srgb, ${color} 75%, black)`,
+          bgcolor: alpha(color, 0.08),
+          height: 20,
+          fontSize: 11.5,
+          '& .MuiChip-label': { px: 0.75 },
+          ...theme.applyStyles('dark', { color: `color-mix(in srgb, ${color} 45%, white)` }),
+        }),
+        ...(Array.isArray(sx) ? sx : [sx]),
+      ]}
       {...rest}
     />
   );

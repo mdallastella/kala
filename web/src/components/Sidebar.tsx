@@ -63,8 +63,8 @@ function DeleteTagButton({ tag, selected }: { tag: Tag; selected: boolean }) {
       size="small"
       sx={{ p: 0.25, mx: 0.5, opacity: 0, '&:focus-visible': { opacity: 1 } }}
       aria-label={`Delete tag ${tag.name}`}
-      onClick={() => {
-        if (!window.confirm(`Remove “${tag.name}” from all ${tag.total} tasks?`)) return;
+      onClick={async () => {
+        if (!(await ui.confirm({ title: `Delete “${tag.name}”?`, message: `It is removed from all ${tag.total} tasks.` }))) return;
         deleteTag.mutate(tag.id, {
           onSuccess: () => {
             ui.notify(`Deleted ${tag.name}`);

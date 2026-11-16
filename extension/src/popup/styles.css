@@ -160,6 +160,19 @@ body {
   font-size: 11.5px;
 }
 
+/* Tag colours are arbitrary: shade the text toward the theme's text colour so it stays readable. */
+.chip.tag {
+  color: color-mix(in srgb, var(--tag) 75%, black);
+  border-color: color-mix(in srgb, var(--tag) 50%, transparent);
+  background: color-mix(in srgb, var(--tag) 8%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  .chip.tag {
+    color: color-mix(in srgb, var(--tag) 45%, white);
+  }
+}
+
 .chip.plain {
   color: var(--text-2);
 }

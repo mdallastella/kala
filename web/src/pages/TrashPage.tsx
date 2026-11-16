@@ -20,8 +20,10 @@ export function TrashPage() {
   const fail = (e: unknown) => ui.notify(errorMessage(e));
 
   const doRestore = () => current && restore.mutate(current.id, { onSuccess: () => ui.notify(`Restored “${current.title}”`), onError: fail });
-  const doPurge = () => {
-    if (current && window.confirm(`Delete “${current.title}” forever? Its time entries are deleted too.`)) purge.mutate(current.id, { onError: fail });
+  const doPurge = async () => {
+    if (!current) return;
+    if (await ui.confirm({ title: `Delete “${current.title}” forever?`, message: 'Its time entries are deleted too.', confirmLabel: 'Delete forever' }))
+      purge.mutate(current.id, { onError: fail });
   };
 
   useHotkeys([

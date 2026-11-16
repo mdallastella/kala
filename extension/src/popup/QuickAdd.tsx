@@ -250,7 +250,7 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
             {preview.tags.map((t) => {
               const c = tagColor(t, colors);
               return (
-                <span key={t} class="chip" style={{ color: c, borderColor: `color-mix(in srgb, ${c} 50%, transparent)`, background: `color-mix(in srgb, ${c} 8%, transparent)` }}>
+                <span key={t} class="chip tag" style={{ '--tag': c }}>
                   {t}
                 </span>
               );

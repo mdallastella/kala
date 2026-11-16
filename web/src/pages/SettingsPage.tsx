@@ -186,6 +186,7 @@ function Namespaces() {
 
 function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () => void }) {
   const { saveNamespace, deleteNamespace } = useActions();
+  const ui = useUi();
   const [name, setName] = useState(ns.name ?? '');
   const [exclusive, setExclusive] = useState(ns.exclusive ?? false);
   const [def, setDef] = useState(ns.default_value ?? '');
@@ -281,7 +282,14 @@ function NamespaceDialog({ ns, onClose }: { ns: Partial<Namespace>; onClose: () 
       </DialogContent>
       <DialogActions>
         {ns.id && (
-          <Button color="error" sx={{ mr: 'auto' }} onClick={() => window.confirm(`Delete the “${ns.name}” namespace? Its tags stay on tasks as free tags.`) && deleteNamespace.mutate(ns.id!, { onSuccess: onClose })}>
+          <Button
+            color="error"
+            sx={{ mr: 'auto' }}
+            onClick={async () => {
+              if (await ui.confirm({ title: `Delete the “${ns.name}” namespace?`, message: 'Its tags stay on tasks as free tags.' }))
+                deleteNamespace.mutate(ns.id!, { onSuccess: onClose });
+            }}
+          >
             Delete
           </Button>
         )}
@@ -310,7 +318,7 @@ function TagsSection() {
         return;
       }
       const list = preview.tags.slice(0, 20).join(', ') + (n > 20 ? `, … (${n - 20} more)` : '');
-      if (!window.confirm(`Delete ${n} unused tag${n === 1 ? '' : 's'}?\n\n${list}`)) return;
+      if (!(await ui.confirm({ title: `Delete ${n} unused tag${n === 1 ? '' : 's'}?`, message: list }))) return;
       const res = await cleanupTags.mutateAsync(true);
       ui.notify(`Deleted ${res.tags.length} unused tag${res.tags.length === 1 ? '' : 's'}`);
     } catch (e) {
@@ -353,10 +361,10 @@ function TagsSection() {
             <IconButton
               size="small"
               aria-label={`Delete ${t.name}`}
-              onClick={() =>
-                window.confirm(`Remove “${t.name}” from all ${t.total} tasks?`) &&
-                deleteTag.mutate(t.id, { onError: (e) => ui.notify(errorMessage(e)) })
-              }
+              onClick={async () => {
+                if (await ui.confirm({ title: `Delete “${t.name}”?`, message: `It is removed from all ${t.total} tasks.` }))
+                  deleteTag.mutate(t.id, { onError: (e) => ui.notify(errorMessage(e)) });
+              }}
             >
               <DeleteOutlinedIcon fontSize="small" />
             </IconButton>
@@ -426,6 +434,7 @@ function RenameDialog({ tag, onClose }: { tag: Tag; onClose: () => void }) {
 function Tokens() {
   const { data: tokens = [] } = useTokens();
   const { createToken, revokeToken } = useActions();
+  const ui = useUi();
   const [name, setName] = useState('');
   const [created, setCreated] = useState<string | null>(null);
   const origin = window.location.origin;
@@ -451,7 +460,14 @@ function Tokens() {
             key={t.id}
             disableGutters
             secondaryAction={
-              <Button color="error" size="small" aria-label={`Revoke ${t.name}`} onClick={() => window.confirm(`Revoke “${t.name}”?`) && revokeToken.mutate(t.id)}>
+              <Button
+                color="error"
+                size="small"
+                aria-label={`Revoke ${t.name}`}
+                onClick={async () => {
+                  if (await ui.confirm({ title: `Revoke “${t.name}”?`, message: 'Clients using this token lose access.', confirmLabel: 'Revoke' })) revokeToken.mutate(t.id);
+                }}
+              >
                 Revoke
               </Button>
             }
