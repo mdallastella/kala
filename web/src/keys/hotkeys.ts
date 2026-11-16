@@ -22,16 +22,34 @@ function isEditable(el: Element | null): boolean {
   return false;
 }
 
+// Focusable controls that act on these keys themselves (a button clicks on
+// Enter/Space, a checkbox toggles on Space, a link follows on Enter). Rows of
+// a hotkey-driven list opt out with data-hotkeys, so j/k/arrows/Enter keep
+// working after a row was clicked.
+const CONTROL =
+  'button, a[href], summary, input[type="checkbox"], input[type="radio"], ' +
+  '[role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="option"], [role="menuitem"], [role="link"]';
+const CONTROL_KEYS = new Set(['enter', 'space', 'up', 'down', 'left', 'right', 'home', 'end']);
+
+/** The bindings that may fire for a key pressed on target. */
+export function usableBindings(all: Binding[], target: Element | null): Binding[] {
+  const typing = isEditable(target);
+  const inDialog = !!target?.closest('[role="dialog"], [role="presentation"]');
+  const control = typing ? null : target?.closest(CONTROL);
+  const onControl = !!control && !control.hasAttribute('data-hotkeys');
+  return all.filter(
+    (b) => (!typing || b.allowInInput) && (!inDialog || b.allowInDialog) && !(onControl && CONTROL_KEYS.has(b.keys)),
+  );
+}
+
 function onKeyDown(e: KeyboardEvent) {
   if (e.defaultPrevented || e.isComposing) return;
   const combo = comboOf(e);
   if (!combo) return;
   const target = e.target instanceof Element ? e.target : null;
-  const typing = isEditable(target);
-  const inDialog = !!target?.closest('[role="dialog"], [role="presentation"]');
   // Most recently registered scopes take precedence.
   const all = [...scopes.values()].reverse().flatMap((f) => f());
-  const usable = all.filter((b) => (!typing || b.allowInInput) && (!inDialog || b.allowInDialog));
+  const usable = usableBindings(all, target);
   const hit = matcher.feed(usable, combo, Date.now());
   if (hit === 'pending') {
     e.preventDefault();

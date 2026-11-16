@@ -31,6 +31,7 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
   return (
     <ListItemButton
       data-task-id={task.id}
+      data-hotkeys
       className={focused ? 'kala-focused' : undefined}
       selected={selected || open}
       onClick={onClick}

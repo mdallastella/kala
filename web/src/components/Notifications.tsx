@@ -141,7 +141,7 @@ function ReminderSnackbar({ task, onDone }: { task: Task | null; onDone: () => v
 
 function TaskLine({ t, focused, onClick }: { t: Task; focused: boolean; onClick: () => void }) {
   return (
-    <ListItemButton selected={focused} onClick={onClick} dense>
+    <ListItemButton data-hotkeys selected={focused} onClick={onClick} dense>
       <ListItemText
         primary={t.title}
         secondary={

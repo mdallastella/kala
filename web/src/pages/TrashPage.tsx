@@ -1,4 +1,4 @@
-import { Box, Button, List, ListItemButton, ListItemText, Typography } from '@mui/material';
+import { Box, Button, List, ListItem, ListItemButton, ListItemText, Typography } from '@mui/material';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import { useActions, useTrash } from '../api/hooks';
@@ -39,20 +39,28 @@ export function TrashPage() {
       </Typography>
       <List disablePadding>
         {tasks.map((t, i) => (
-          <ListItemButton key={t.id} selected={i === focus} onClick={() => setFocus(i)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <ListItemText
-              primary={t.title}
-              secondary={`Deleted ${fullDateTime(t.deleted_at!)}`}
-            />
-            <Box sx={{ display: 'flex', gap: 0.5, mr: 2 }}>
-              {chipTags(t.tags).map((x) => (
-                <TagChip key={x} name={x} />
-              ))}
-            </Box>
-            <Button size="small" onClick={() => { setFocus(i); restore.mutate(t.id, { onError: fail }); }}>
-              Restore
-            </Button>
-          </ListItemButton>
+          <ListItem
+            key={t.id}
+            disablePadding
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
+            secondaryAction={
+              <Button size="small" onClick={() => { setFocus(i); restore.mutate(t.id, { onError: fail }); }}>
+                Restore
+              </Button>
+            }
+          >
+            <ListItemButton data-hotkeys selected={i === focus} onClick={() => setFocus(i)} sx={{ pr: '96px !important' }}>
+              <ListItemText
+                primary={t.title}
+                secondary={`Deleted ${fullDateTime(t.deleted_at!)}`}
+              />
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                {chipTags(t.tags).map((x) => (
+                  <TagChip key={x} name={x} />
+                ))}
+              </Box>
+            </ListItemButton>
+          </ListItem>
         ))}
       </List>
       {tasks.length === 0 && <Typography color="text.secondary">The trash is empty.</Typography>}

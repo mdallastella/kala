@@ -1,4 +1,4 @@
-import { Box, Collapse, IconButton, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography } from '@mui/material';
+import { Box, Collapse, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import ChecklistIcon from '@mui/icons-material/Checklist';
@@ -61,10 +61,9 @@ function DeleteTagButton({ tag, selected }: { tag: Tag; selected: boolean }) {
     <IconButton
       className="tag-delete"
       size="small"
-      sx={{ p: 0.25, ml: 0.5, opacity: 0, '&:focus-visible': { opacity: 1 } }}
+      sx={{ p: 0.25, mx: 0.5, opacity: 0, '&:focus-visible': { opacity: 1 } }}
       aria-label={`Delete tag ${tag.name}`}
-      onClick={(e) => {
-        e.stopPropagation();
+      onClick={() => {
         if (!window.confirm(`Remove “${tag.name}” from all ${tag.total} tasks?`)) return;
         deleteTag.mutate(tag.id, {
           onSuccess: () => {
@@ -91,33 +90,22 @@ function TreeItem({ node, depth, current, listed }: { node: TagNode; depth: numb
   const drop = useTagDrop(node.name, node.name.includes(':') || !hasKids);
   return (
     <>
-      <ListItemButton
-        dense
-        selected={current === q}
-        sx={{ pl: 1 + depth * 1.5, py: 0.25, '&:hover .tag-delete': { opacity: 1 }, ...dropSx(drop.over) }}
-        onClick={() => navigate(tasksPath(q))}
-        {...drop.props}
-      >
-        <Box sx={{ width: 24, display: 'flex' }}>
+      {/* Expand and delete sit beside the row button, not inside it. */}
+      <ListItem disablePadding sx={{ pl: 1 + depth * 1.5, '&:hover .tag-delete, &:focus-within .tag-delete': { opacity: 1 } }}>
+        <Box sx={{ width: 24, display: 'flex', flexShrink: 0 }}>
           {hasKids && (
-            <IconButton
-              size="small"
-              sx={{ p: 0 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpen(!open);
-              }}
-              aria-label={open ? 'Collapse' : 'Expand'}
-            >
+            <IconButton size="small" sx={{ p: 0 }} onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} ${node.label}`}>
               {open ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
             </IconButton>
           )}
         </Box>
-        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tagColor(node.name, map), mr: 1, flexShrink: 0 }} />
-        <ListItemText primary={node.label} slotProps={{ primary: { noWrap: true, variant: 'body2' } }} />
-        <Count n={node.open} />
+        <ListItemButton dense selected={current === q} sx={{ pl: 0.5, py: 0.25, ...dropSx(drop.over) }} onClick={() => navigate(tasksPath(q))} {...drop.props}>
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tagColor(node.name, map), mr: 1, flexShrink: 0 }} />
+          <ListItemText primary={node.label} slotProps={{ primary: { noWrap: true, variant: 'body2' } }} />
+          <Count n={node.open} />
+        </ListItemButton>
         {node.tag && !listed.has(node.name) && <DeleteTagButton tag={node.tag} selected={current === q} />}
-      </ListItemButton>
+      </ListItem>
       {hasKids && (
         <Collapse in={open} unmountOnExit>
           {node.children.map((c) => (

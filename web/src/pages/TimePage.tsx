@@ -9,6 +9,7 @@ import {
   IconButton,
   LinearProgress,
   List,
+  ListItem,
   ListItemButton,
   ListItemText,
   MenuItem,
@@ -159,23 +160,31 @@ export function TimePage() {
               i++;
               const idx = i;
               return (
-                <ListItemButton key={e.id} selected={idx === focus} onClick={() => setFocus(idx)} onDoubleClick={() => setEditing(e)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                  <Typography variant="body2" sx={{ width: 120, fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>
-                    {timeLabel(e.started_at)}–{e.stopped_at ? timeLabel(e.stopped_at) : 'now'}
-                  </Typography>
-                  <ListItemText primary={e.task_title} secondary={e.note || undefined} />
-                  <Box sx={{ display: 'flex', gap: 0.5, mr: 2 }}>
-                    {chipTags(e.task_tags).map((t) => (
-                      <TagChip key={t} name={t} short />
-                    ))}
-                  </Box>
-                  <Typography variant="body2" sx={{ width: 70, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    {duration(e.stopped_at ? e.seconds : (now - new Date(e.started_at).getTime()) / 1000)}
-                  </Typography>
-                  <IconButton size="small" onClick={(ev) => { ev.stopPropagation(); del(e); }} aria-label="Delete entry">
-                    <DeleteOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </ListItemButton>
+                <ListItem
+                  key={e.id}
+                  disablePadding
+                  sx={{ borderBottom: 1, borderColor: 'divider' }}
+                  secondaryAction={
+                    <IconButton size="small" onClick={() => del(e)} aria-label={`Delete entry ${timeLabel(e.started_at)} ${e.task_title}`}>
+                      <DeleteOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  }
+                >
+                  <ListItemButton data-hotkeys selected={idx === focus} onClick={() => setFocus(idx)} onDoubleClick={() => setEditing(e)}>
+                    <Typography variant="body2" sx={{ width: 120, fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>
+                      {timeLabel(e.started_at)}–{e.stopped_at ? timeLabel(e.stopped_at) : 'now'}
+                    </Typography>
+                    <ListItemText primary={e.task_title} secondary={e.note || undefined} />
+                    <Box sx={{ display: 'flex', gap: 0.5, mr: 2 }}>
+                      {chipTags(e.task_tags).map((t) => (
+                        <TagChip key={t} name={t} short />
+                      ))}
+                    </Box>
+                    <Typography variant="body2" sx={{ width: 70, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {duration(e.stopped_at ? e.seconds : (now - new Date(e.started_at).getTime()) / 1000)}
+                    </Typography>
+                  </ListItemButton>
+                </ListItem>
               );
             })}
           </List>
