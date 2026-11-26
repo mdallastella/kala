@@ -54,9 +54,9 @@ type vikTask struct {
 // task is a converted task plus what the merge step needs to know about it.
 type task struct {
 	service.ExportTask
-	// closedGuessed is set when the source had no completion time, so
-	// ClosedAt is only an approximation that later time entries can improve.
-	closedGuessed bool
+	// endedGuessed is set when the source had no completion time, so
+	// EndedAt is only an approximation that later time entries can improve.
+	endedGuessed bool
 }
 
 // vikunja converts a Vikunja export (the zip file, or its data.json) into
@@ -122,9 +122,9 @@ func convertVikunjaTask(vt vikTask, project string, known map[string]bool, title
 		add("status:closed")
 		closed := vt.DoneAt
 		if isZero(closed) {
-			closed, t.closedGuessed = vt.Updated, true
+			closed, t.endedGuessed = vt.Updated, true
 		}
-		t.ClosedAt = &closed
+		t.EndedAt = &closed
 	} else {
 		add("status:open")
 	}

@@ -168,6 +168,13 @@ func TestTasksAndPAT(t *testing.T) {
 	if code := p.do("GET", "/api/v1/tasks?q=project:kala", nil, &list); code != 200 || len(list) != 1 {
 		t.Fatalf("list with PAT: %d %v", code, list)
 	}
+	var open struct{ Query string }
+	if code := p.do("GET", "/api/v1/filters/open", nil, &open); code != 200 || open.Query != "-status:closed,cancelled" {
+		t.Fatalf("open filter: %d %+v", code, open)
+	}
+	if code := p.do("GET", "/api/v1/tasks?q=is:open", nil, nil); code != 400 {
+		t.Fatalf("is:open: %d", code)
+	}
 	if code := c.do("DELETE", "/api/v1/tokens/1", nil, nil); code != 204 {
 		t.Fatalf("revoke: %d", code)
 	}
@@ -294,6 +301,13 @@ func TestMCP(t *testing.T) {
 	text := res.Content[0].(*sdk.TextContent).Text
 	if !strings.Contains(text, "From Claude") {
 		t.Fatalf("search result: %s", text)
+	}
+	if res, err = sess.CallTool(ctx, &sdk.CallToolParams{Name: "close_task", Arguments: map[string]any{"id": 1}}); err != nil || res.IsError {
+		t.Fatalf("close_task: %v %+v", err, res)
+	}
+	res, err = sess.CallTool(ctx, &sdk.CallToolParams{Name: "search_tasks", Arguments: map[string]any{"query": "project:kala", "open_only": true}})
+	if err != nil || res.IsError || strings.Contains(res.Content[0].(*sdk.TextContent).Text, "From Claude") {
+		t.Fatalf("search_tasks open_only: %v %+v", err, res)
 	}
 	res, err = sess.CallTool(ctx, &sdk.CallToolParams{Name: "get_task", Arguments: map[string]any{"id": 999}})
 	if err != nil || !res.IsError {

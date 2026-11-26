@@ -27,7 +27,7 @@ interface Props {
 }
 
 export const TaskRow = memo(function TaskRow({ task, focused, selected, open, now, onClick, onToggle, onDragStart }: Props) {
-  const closed = task.closed_at != null;
+  const ended = task.ended_at != null;
   const prio = task.priority;
   const status = statusOf(task.tags);
   const running = task.running_since ? (now - new Date(task.running_since).getTime()) / 1000 : 0;
@@ -44,14 +44,14 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
     >
       <Checkbox
         size="small"
-        checked={closed}
+        checked={ended}
         tabIndex={-1}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         sx={{ p: 0.5 }}
-        slotProps={{ input: { 'aria-label': closed ? 'Reopen' : 'Close' } }}
+        slotProps={{ input: { 'aria-label': ended ? 'Reopen' : 'Close' } }}
       />
       <Box sx={{ width: 16, display: 'flex' }}>
         {prio && (
@@ -64,7 +64,7 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
         <Typography
           variant="body2"
           noWrap
-          sx={{ textDecoration: closed ? 'line-through' : undefined, color: closed ? 'text.disabled' : 'text.primary', flexShrink: 1, minWidth: 40 }}
+          sx={{ textDecoration: ended ? 'line-through' : undefined, color: ended ? 'text.disabled' : 'text.primary', flexShrink: 1, minWidth: 40 }}
         >
           {task.title}
         </Typography>
@@ -110,7 +110,7 @@ export const TaskRow = memo(function TaskRow({ task, focused, selected, open, no
       {task.due_date && (
         <Typography
           variant="caption"
-          sx={{ width: 84, textAlign: 'right', color: !closed && isOverdue(task.due_date) ? 'error.main' : 'text.secondary', fontWeight: !closed && isOverdue(task.due_date) ? 600 : 400 }}
+          sx={{ width: 84, textAlign: 'right', color: !ended && isOverdue(task.due_date) ? 'error.main' : 'text.secondary', fontWeight: !ended && isOverdue(task.due_date) ? 600 : 400 }}
         >
           {dueLabel(task.due_date)}
         </Typography>

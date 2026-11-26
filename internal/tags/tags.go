@@ -110,6 +110,26 @@ func (n *Namespace) FirstTerminal() (string, bool) {
 	return "", false
 }
 
+// OpenQuery returns the filter matching tasks that have not ended: for each
+// namespace with terminal values, a negated term listing them (with the
+// defaults, "-status:closed,cancelled"). It is empty when no namespace has
+// terminal values. Tag terms match subtrees, as terminal values do.
+func OpenQuery(nss []Namespace) string {
+	var terms []string
+	for _, n := range nss {
+		var vs []string
+		for _, v := range n.Values {
+			if v.Terminal {
+				vs = append(vs, v.Value)
+			}
+		}
+		if len(vs) > 0 {
+			terms = append(terms, "-"+n.Name+":"+strings.Join(vs, ","))
+		}
+	}
+	return strings.Join(terms, " ")
+}
+
 // Validate checks a namespace definition and normalises its name, values and
 // default the way tags are, so that it matches the tags tasks carry.
 func (n *Namespace) Validate() error {

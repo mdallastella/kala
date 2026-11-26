@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Tag } from '../api/types';
 import { ago, clock, dateOf, dueLabel, duration, fullDateTime, isoDate, isOverdue, monthGrid, parseClock, setZone, startOfDay, timeLabel, todayDate } from './format';
-import { buildTree, chipTags, projectFromQuery, tagColor, withNamespaceValues } from './tags';
+import { buildTree, chipTags, projectFromQuery, tagColor, tagQuery, withNamespaceValues } from './tags';
 import { completeToken, currentToken, suggestions } from './quickadd';
 import { hourRange, segments } from './timeline';
 
@@ -39,10 +39,25 @@ describe('tags', () => {
   });
 
   it('finds the project of a filter', () => {
-    expect(projectFromQuery('project:kala is:open')).toBe('kala');
-    expect(projectFromQuery('is:open project:kala:api')).toBe('kala:api');
+    expect(projectFromQuery('project:kala -status:closed,cancelled')).toBe('kala');
+    expect(projectFromQuery('-status:closed,cancelled project:kala:api')).toBe('kala:api');
     expect(projectFromQuery('project:a,b')).toBeNull();
-    expect(projectFromQuery('-project: is:open')).toBeNull();
+    expect(projectFromQuery('-project: -status:closed,cancelled')).toBeNull();
+  });
+
+  it('builds tag links with the open query except for namespaces with terminal values', () => {
+    const nss = [
+      { id: 1, name: 'status', exclusive: true, values: [{ value: 'open', terminal: false }, { value: 'closed', terminal: true }] },
+      { id: 2, name: 'project', exclusive: false, values: [] },
+    ];
+    const open = '-status:closed';
+    expect(tagQuery('project:kala', nss, open)).toBe('project:kala -status:closed');
+    expect(tagQuery('urgent', nss, open)).toBe('#urgent -status:closed');
+    expect(tagQuery('status:closed', nss, open)).toBe('status:closed');
+    expect(tagQuery('status:closed:won', nss, open)).toBe('status:closed:won');
+    expect(tagQuery('status', nss, open)).toBe('#status');
+    expect(tagQuery('project:kala', nss, '')).toBe('project:kala');
+    expect(tagQuery('project:kala', undefined, undefined)).toBe('project:kala');
   });
 });
 

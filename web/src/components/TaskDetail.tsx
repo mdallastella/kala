@@ -73,7 +73,7 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
 
   const title = titleDraft ?? task.title;
   const save = (p: Parameters<typeof update.mutate>[0]) => update.mutate(p, { onError: (e) => ui.notify(errorMessage(e)) });
-  const closed = task.closed_at != null;
+  const ended = task.ended_at != null;
   const prio = priorityOf(task.tags) ?? '';
   const status = statusOf(task.tags) ?? '';
   const statuses = namespaceValues(nss, 'status');
@@ -173,7 +173,7 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
         <Chip
           icon={<EventIcon />}
           label={task.due_date ? dueLabel(task.due_date) : 'No due date'}
-          color={!closed && isOverdue(task.due_date) ? 'error' : 'default'}
+          color={!ended && isOverdue(task.due_date) ? 'error' : 'default'}
           variant="outlined"
           onClick={() => ui.pickDate([task], 'due')}
           onDelete={task.due_date ? () => save({ id, due_date: null }) : undefined}
@@ -270,7 +270,7 @@ export function TaskDetail({ id, focusTitle, onClose }: Props) {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="caption" color="text.secondary">
           Created {fullDateTime(task.created_at)}
-          {task.closed_at && ` · closed ${fullDateTime(task.closed_at)}`}
+          {task.ended_at && ` · ended ${fullDateTime(task.ended_at)}`}
         </Typography>
         <Button
           size="small"

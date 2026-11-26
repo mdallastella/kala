@@ -86,9 +86,9 @@ func attach(t *task, entries []service.ExportEntry) {
 	slices.SortFunc(t.Entries, func(a, b service.ExportEntry) int { return a.StartedAt.Compare(b.StartedAt) })
 	// Without a real completion time, the end of the last logged work is a
 	// better guess than the last edit.
-	if t.closedGuessed && t.ClosedAt != nil {
+	if t.endedGuessed && t.EndedAt != nil {
 		last := lastStop(t.Entries)
-		t.ClosedAt = &last
+		t.EndedAt = &last
 	}
 }
 
@@ -102,7 +102,7 @@ func newClockifyTask(g *group) *task {
 		t.Tags = append(t.Tags, g.Project)
 	}
 	t.Tags = append(t.Tags, "status:closed")
-	t.CreatedAt, t.UpdatedAt, t.ClosedAt = g.Entries[0].StartedAt, last, &last
+	t.CreatedAt, t.UpdatedAt, t.EndedAt = g.Entries[0].StartedAt, last, &last
 	return t
 }
 

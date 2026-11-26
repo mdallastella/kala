@@ -24,7 +24,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { useMemo, useState } from 'react';
 import { errorMessage, get } from '../api/client';
-import { useActions, useEntries, useNamespaces, useReport } from '../api/hooks';
+import { useActions, useEntries, useNamespaces, useOpenQuery, useReport } from '../api/hooks';
 import type { Task, TimeEntry } from '../api/types';
 import { DateTimeField } from '../components/DateTimeField';
 import { TagChip } from '../components/TagChip';
@@ -200,6 +200,7 @@ export function TimePage() {
 
 function EntryDialog({ entry, onClose }: { entry: TimeEntry | null; onClose: () => void }) {
   const { createEntry, updateEntry } = useActions();
+  const { data: open } = useOpenQuery();
   const ui = useUi();
   const [start, setStart] = useState(() => toLocalInput(entry?.started_at ?? new Date(Date.now() - 3600000).toISOString()));
   const [stop, setStop] = useState(() => toLocalInput(entry?.stopped_at ?? (entry ? null : new Date().toISOString())));
@@ -210,7 +211,7 @@ function EntryDialog({ entry, onClose }: { entry: TimeEntry | null; onClose: () 
   const [options, setOptions] = useState<Task[]>([]);
 
   const search = (text: string) => {
-    get<Task[]>(`/tasks?limit=20&q=${encodeURIComponent(text ? `"${text.replace(/"/g, '')}"` : 'is:open')}`)
+    get<Task[]>(`/tasks?limit=20&q=${encodeURIComponent(text ? `"${text.replace(/"/g, '')}"` : open ?? '')}`)
       .then(setOptions)
       .catch(() => setOptions([]));
   };

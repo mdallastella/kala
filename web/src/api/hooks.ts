@@ -17,9 +17,9 @@ import type {
 /** Query keys grouped by the resource kinds the server reports in SSE events. */
 const kindKeys: Record<string, string[][]> = {
   tasks: [['tasks'], ['task'], ['trash'], ['digest']],
-  tags: [['tags']],
+  tags: [['tags'], ['openQuery']],
   timers: [['timers'], ['entries'], ['report'], ['tasks'], ['task'], ['digest']],
-  namespaces: [['namespaces']],
+  namespaces: [['namespaces'], ['openQuery']],
   me: [['me'], ['workingHours']],
   tokens: [['tokens']],
 };
@@ -30,11 +30,24 @@ export function invalidateKinds(qc: QueryClient, kinds: string[]) {
 
 export const useMe = () => useQuery({ queryKey: ['me'], queryFn: () => get<User>('/me') });
 
-export const useTasks = (q: string, limit?: number) =>
+/** Tasks matching q; nothing is fetched while q is undefined (e.g. the open query is loading). */
+export const useTasks = (q: string | undefined, limit?: number) =>
   useQuery({
     queryKey: ['tasks', q, limit],
-    queryFn: () => get<Task[]>(`/tasks?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`),
+    queryFn: () => get<Task[]>(`/tasks?q=${encodeURIComponent(q ?? '')}${limit ? `&limit=${limit}` : ''}`),
     placeholderData: (prev) => prev,
+    enabled: q !== undefined,
+  });
+
+/**
+ * The filter for open tasks (no terminal value), built by the server from the
+ * namespaces: "-status:closed,cancelled" with the defaults.
+ */
+export const useOpenQuery = () =>
+  useQuery({
+    queryKey: ['openQuery'],
+    queryFn: () => get<{ query: string }>('/filters/open').then((r) => r.query),
+    staleTime: 5 * 60_000,
   });
 
 export const useTask = (id: number | null) =>

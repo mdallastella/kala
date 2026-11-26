@@ -7,17 +7,22 @@
 //	project:a,b          either project:a or project:b
 //	project:             task has any tag in the namespace
 //	#urgent              tag without namespace
-//	is:open|closed|running|reminder
+//	timer:running        task has a running timer
 //	due:today|tomorrow|overdue|week|none|any, due:<=fri, due:2026-11-01
-//	remind:today|due|none|any
-//	closed:today|week, closed:>=2026-10-01
+//	remind:today|due|pending|none|any
+//	ended:today|week, ended:>=2026-10-01   when the task got a terminal value
 //	sort:priority,due,-created   (namespace names sort by value order; also tracked, activity)
 //	word "quoted text"   matches title or notes
+//
+// There is no term for open tasks: status is a tag, so open tasks are those
+// without a terminal value, e.g. -status:closed,cancelled (see OpenQuery in
+// the service package, which builds it from the user's namespaces).
 //
 // The compiled condition refers to the tasks table as "t".
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -87,13 +92,17 @@ func Compile(q string, env Env) (*Query, error) {
 			sort = val
 			continue
 		case hasColon && key == "is":
-			cond, err = isCond(strings.ToLower(val))
+			return nil, ErrIsRemoved
+		case hasColon && key == "closed":
+			return nil, fmt.Errorf("closed: was renamed to ended: (e.g. ended:week)")
+		case hasColon && key == "timer":
+			cond, err = timerCond(strings.ToLower(val))
 		case hasColon && key == "due":
 			cond, a, err = dueCond(strings.ToLower(val), env)
 		case hasColon && key == "remind":
 			cond, a, err = remindCond(strings.ToLower(val), env)
-		case hasColon && key == "closed":
-			cond, a, err = closedCond(strings.ToLower(val), env)
+		case hasColon && key == "ended":
+			cond, a, err = endedCond(strings.ToLower(val), env)
 		case strings.HasPrefix(text, "#") || hasColon:
 			cond, a, err = tagCond(text)
 		default:
@@ -216,18 +225,15 @@ func tagCond(s string) (string, []any, error) {
 	return fmt.Sprintf(tagExists, strings.Join(alts, " OR ")), args, nil
 }
 
-func isCond(v string) (string, error) {
-	switch v {
-	case "open":
-		return "t.closed_at IS NULL", nil
-	case "closed", "done":
-		return "t.closed_at IS NOT NULL", nil
-	case "running":
+// ErrIsRemoved is returned for any is: term.
+var ErrIsRemoved = errors.New("is: was removed: filter open tasks by status (e.g. -status:closed,cancelled), " +
+	"and use timer:running or remind:pending")
+
+func timerCond(v string) (string, error) {
+	if v == "running" {
 		return "EXISTS (SELECT 1 FROM time_entries e WHERE e.task_id = t.id AND e.stopped_at IS NULL)", nil
-	case "reminder":
-		return "(t.remind_at IS NOT NULL AND t.reminded_at IS NULL)", nil
 	}
-	return "", fmt.Errorf("unknown is:%s (use open, closed, running, reminder)", v)
+	return "", fmt.Errorf("unknown timer:%s (use timer:running, or -timer:running)", v)
 }
 
 // splitOp separates a comparison operator from a value.
@@ -272,37 +278,39 @@ func remindCond(v string, env Env) (string, []any, error) {
 		return "t.remind_at IS NOT NULL", nil, nil
 	case "due":
 		return "(t.remind_at <= ? AND t.reminded_at IS NULL)", []any{Timestamp(env.Now)}, nil
+	case "pending":
+		return "(t.remind_at IS NOT NULL AND t.reminded_at IS NULL)", nil, nil
 	case "today":
 		return "(t.remind_at >= ? AND t.remind_at < ?)", []any{env.startOf(today), env.startOf(today.AddDays(1))}, nil
 	}
-	return "", nil, fmt.Errorf("unknown remind:%s (use today, due, none, any)", v)
+	return "", nil, fmt.Errorf("unknown remind:%s (use today, due, pending, none, any)", v)
 }
 
-func closedCond(v string, env Env) (string, []any, error) {
+func endedCond(v string, env Env) (string, []any, error) {
 	today := env.today()
 	switch v {
 	case "today":
-		return "t.closed_at >= ?", []any{env.startOf(today)}, nil
+		return "t.ended_at >= ?", []any{env.startOf(today)}, nil
 	case "week":
-		return "t.closed_at >= ?", []any{env.startOf(today.AddDays(-6))}, nil
+		return "t.ended_at >= ?", []any{env.startOf(today.AddDays(-6))}, nil
 	}
 	op, rest := splitOp(v)
 	d, err := dates.ParseRelative(rest, today, env.Cal)
 	if err != nil {
-		return "", nil, fmt.Errorf("closed: %w", err)
+		return "", nil, fmt.Errorf("ended: %w", err)
 	}
 	start, next := env.startOf(d), env.startOf(d.AddDays(1))
 	switch op {
 	case "<=":
-		return "t.closed_at < ?", []any{next}, nil
+		return "t.ended_at < ?", []any{next}, nil
 	case "<":
-		return "t.closed_at < ?", []any{start}, nil
+		return "t.ended_at < ?", []any{start}, nil
 	case ">=":
-		return "t.closed_at >= ?", []any{start}, nil
+		return "t.ended_at >= ?", []any{start}, nil
 	case ">":
-		return "t.closed_at >= ?", []any{next}, nil
+		return "t.ended_at >= ?", []any{next}, nil
 	default:
-		return "(t.closed_at >= ? AND t.closed_at < ?)", []any{start, next}, nil
+		return "(t.ended_at >= ? AND t.ended_at < ?)", []any{start, next}, nil
 	}
 }
 
@@ -335,8 +343,8 @@ func DerivedPriority(due string, today dates.Date) int {
 	return 2
 }
 
-// derivedPriority mirrors DerivedPriority in SQL; closed tasks have none.
-const derivedPriority = `CASE WHEN t.closed_at IS NOT NULL THEN NULL WHEN t.due_date IS NULL THEN 2
+// derivedPriority mirrors DerivedPriority in SQL; ended tasks have none.
+const derivedPriority = `CASE WHEN t.ended_at IS NOT NULL THEN NULL WHEN t.due_date IS NULL THEN 2
 	WHEN t.due_date <= ? THEN 0 WHEN t.due_date <= ? THEN 1 ELSE 2 END`
 
 // lastTracked is the start of a task's most recent time entry.
@@ -346,7 +354,7 @@ var columns = map[string]string{
 	"due":     "t.due_date",
 	"created": "t.created_at",
 	"updated": "t.updated_at",
-	"closed":  "t.closed_at",
+	"ended":   "t.ended_at",
 	"title":   "t.title COLLATE NOCASE",
 	"remind":  "t.remind_at",
 	"tracked": lastTracked,
@@ -368,6 +376,9 @@ func orderBy(spec string, env Env) (string, []any, error) {
 		if strings.HasPrefix(key, "-") {
 			dir = "DESC"
 			key = key[1:]
+		}
+		if key == "closed" {
+			return "", nil, fmt.Errorf("sort:closed was renamed to sort:ended")
 		}
 		expr, ok := columns[key]
 		if !ok {

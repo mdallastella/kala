@@ -34,10 +34,13 @@ export function completeToken(text: string, value: string): string {
   return text.replace(/([#@!])(\S*)$/, `$1${value} `);
 }
 
-/** Filter query finding open tasks whose text contains title, or null when it is too short to search. */
-export function searchQuery(title: string): string | null {
+/**
+ * Filter query finding open tasks whose text contains title, or null when it is too short to search.
+ * openQuery is the server's filter for open tasks (GET /filters/open).
+ */
+export function searchQuery(title: string, openQuery: string): string | null {
   const t = title.replace(/"/g, '').trim();
-  return t.length < 2 ? null : `"${t}" is:open`;
+  return t.length < 2 ? null : `"${t}" ${openQuery}`.trim();
 }
 
 const palette = ['#5b5bd6', '#0e7c86', '#c2410c', '#15803d', '#be185d', '#7c3aed', '#0369a1', '#a16207', '#b91c1c', '#4d7c0f'];

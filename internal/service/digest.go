@@ -33,8 +33,9 @@ type Wrapup struct {
 	Running      []TimeEntry `json:"running"`
 }
 
-func (s *Service) list(ctx context.Context, userID int64, q string) ([]Task, error) {
-	return s.Tasks(ctx, userID, ListOptions{Query: q, Limit: 200})
+// openList lists a user's open tasks matching q.
+func (s *Service) openList(ctx context.Context, userID int64, q string) ([]Task, error) {
+	return s.Tasks(ctx, userID, ListOptions{Query: q, Limit: 200, OpenOnly: true})
 }
 
 // Briefing builds today's briefing.
@@ -44,13 +45,13 @@ func (s *Service) Briefing(ctx context.Context, userID int64) (*Briefing, error)
 		return nil, err
 	}
 	b := &Briefing{Date: dates.On(s.now(), cal.Loc).String()}
-	if b.Overdue, err = s.list(ctx, userID, "is:open due:overdue sort:due,priority"); err != nil {
+	if b.Overdue, err = s.openList(ctx, userID, "due:overdue sort:due,priority"); err != nil {
 		return nil, err
 	}
-	if b.DueToday, err = s.list(ctx, userID, "is:open due:today"); err != nil {
+	if b.DueToday, err = s.openList(ctx, userID, "due:today"); err != nil {
 		return nil, err
 	}
-	if b.Reminders, err = s.list(ctx, userID, "is:open remind:today sort:remind"); err != nil {
+	if b.Reminders, err = s.openList(ctx, userID, "remind:today sort:remind"); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -64,10 +65,10 @@ func (s *Service) Wrapup(ctx context.Context, userID int64) (*Wrapup, error) {
 	}
 	today := dates.On(s.now(), cal.Loc)
 	w := &Wrapup{Date: today.String(), NextWorkDate: cal.NextWorkingDay(today).String()}
-	if w.Open, err = s.list(ctx, userID, "is:open due:<=today"); err != nil {
+	if w.Open, err = s.openList(ctx, userID, "due:<=today"); err != nil {
 		return nil, err
 	}
-	if w.Next, err = s.list(ctx, userID, "is:open due:nwd"); err != nil {
+	if w.Next, err = s.openList(ctx, userID, "due:nwd"); err != nil {
 		return nil, err
 	}
 	if w.Running, err = s.ActiveTimers(ctx, userID); err != nil {
@@ -116,7 +117,7 @@ func (s *Service) MarkDigestSeen(ctx context.Context, userID int64, kind string)
 // DueReminders lists open tasks whose reminder time has come and that were
 // not acknowledged.
 func (s *Service) DueReminders(ctx context.Context, userID int64) ([]Task, error) {
-	return s.list(ctx, userID, "is:open remind:due sort:remind")
+	return s.openList(ctx, userID, "remind:due sort:remind")
 }
 
 // AckReminder acknowledges a reminder, or snoozes it until a later time.

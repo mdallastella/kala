@@ -103,3 +103,84 @@ func TestStatusMigration(t *testing.T) {
 		t.Errorf("namespace names = %q, want %q", names, want)
 	}
 }
+
+// TestEndedAtMigration upgrades a version-6 database: closed_at becomes
+// ended_at, and a task carrying a terminal sub-value (status:closed:won),
+// which used to stay open, ends and has its timer stopped.
+func TestEndedAtMigration(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "old.db")
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := migrations.ReadDir("migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if f.Name() >= "0007" {
+			break
+		}
+		body, err := migrations.ReadFile("migrations/" + f.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, string(body)); err != nil {
+			t.Fatalf("%s: %v", f.Name(), err)
+		}
+	}
+	for _, q := range []string{
+		"PRAGMA user_version = 6",
+		"INSERT INTO users (id, email, password_hash, created_at) VALUES (1, 'a@example.com', 'x', '2026-01-01')",
+		"INSERT INTO namespaces (id, user_id, name, exclusive, default_value) VALUES (1, 1, 'status', 1, 'open')",
+		"INSERT INTO namespace_values VALUES (1, 'open', 0, 0), (1, 'closed', 1, 1)",
+		"INSERT INTO tags (id, user_id, name) VALUES (1, 1, 'status:closed'), (2, 1, 'status:closed:won'), (3, 1, 'status:open')",
+		`INSERT INTO tasks (id, user_id, title, closed_at, created_at, updated_at) VALUES
+			(1, 1, 'closed', '2026-02-01T00:00:00.000Z', '2026-01-01', '2026-01-01'),
+			(2, 1, 'won', NULL, '2026-01-01', '2026-01-01'),
+			(3, 1, 'open', NULL, '2026-01-01', '2026-01-01')`,
+		"INSERT INTO task_tags VALUES (1, 1), (2, 2), (3, 3)",
+		"INSERT INTO time_entries (user_id, task_id, started_at) VALUES (1, 2, '2026-01-02T00:00:00.000Z'), (1, 3, '2026-01-02T00:00:00.000Z')",
+	} {
+		if _, err := db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err = Open(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	rows, err := db.QueryContext(ctx, `SELECT t.title, COALESCE(t.ended_at, ''),
+		EXISTS (SELECT 1 FROM time_entries e WHERE e.task_id = t.id AND e.stopped_at IS NULL)
+		FROM tasks t ORDER BY t.id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	type row struct {
+		title, ended string
+		running      bool
+	}
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.title, &r.ended, &r.running); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0].ended != "2026-02-01T00:00:00.000Z" || got[1].ended == "" || got[1].running ||
+		got[2].ended != "" || !got[2].running {
+		t.Fatalf("tasks = %+v", got)
+	}
+}

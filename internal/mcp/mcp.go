@@ -19,18 +19,23 @@ const instructions = `Kala is a task manager where projects, status and priority
 
 Tags are colon-separated paths: project:kala:api, status:open, priority:high, client:acme.
 Namespaces such as status and priority are exclusive (one value per task); adding
-status:closed replaces status:open and closes the task. The value is the first segment
+status:closed replaces status:open and ends the task. A task has ended (ended_at is set)
+while it carries a terminal value or a sub-value of one: with the default namespaces,
+status:closed or status:cancelled. The value is the first segment
 after the namespace (client:acme:ops counts as acme). An exclusive namespace accepts only
 its listed values, or any value when none are listed (see list_namespaces).
 
 Filter language (search_tasks, time_report): space-separated terms, all must match.
   project:kala        tag or any descendant      -project:     no project tag (inbox)
   project:a,b         either                     #urgent       tag without namespace
-  is:open|closed|running|reminder
+  status:pending      tasks with that status     -status:closed,cancelled  open tasks (defaults)
+  timer:running       a timer is running         remind:pending  reminder not acknowledged yet
   due:today|tomorrow|overdue|week|none|any  due:<=fri  due:2026-11-01
-  remind:today|due    closed:today|week     "some words"  free text in title/notes
-  sort:priority,due,-created
-  Prefix a term with - to negate it.
+  remind:today|due    ended:today|week|>=2026-10-01   "some words"  free text in title/notes
+  sort:priority,due,-created   (also ended, tracked, activity, or a namespace name)
+  Prefix a term with - to negate it. There is no is: term. For open tasks pass
+  open_only: true to search_tasks; it follows the user's terminal values even when they
+  differ from the defaults.
 
 Quick-add syntax (create_task.quick, update_task.quick, start_timer_new_task.quick):
   Write report #client:acme @kala !high due:fri remind:thu 9:00
@@ -83,8 +88,9 @@ type (
 		ID int64 `json:"id" jsonschema:"task id"`
 	}
 	searchArgs struct {
-		Query string `json:"query,omitempty" jsonschema:"filter expression; empty lists everything not deleted"`
-		Limit int    `json:"limit,omitempty" jsonschema:"maximum number of tasks (default 100)"`
+		Query    string `json:"query,omitempty" jsonschema:"filter expression; empty lists everything not deleted"`
+		Limit    int    `json:"limit,omitempty" jsonschema:"maximum number of tasks (default 100)"`
+		OpenOnly bool   `json:"open_only,omitempty" jsonschema:"only tasks that have not ended (no terminal value)"`
 	}
 	createArgs struct {
 		Quick    string   `json:"quick,omitempty" jsonschema:"quick-add line; parsed for title, tags and dates"`
@@ -170,7 +176,7 @@ func register(srv *mcp.Server, t *tools) {
 			if a.Limit == 0 {
 				a.Limit = 100
 			}
-			return result(t.svc.Tasks(ctx, t.uid, service.ListOptions{Query: a.Query, Limit: a.Limit}))
+			return result(t.svc.Tasks(ctx, t.uid, service.ListOptions{Query: a.Query, Limit: a.Limit, OpenOnly: a.OpenOnly}))
 		})
 	mcp.AddTool(srv, &mcp.Tool{Name: "get_task", Description: "Get one task by id.", Annotations: ro("Get task")},
 		func(ctx context.Context, _ *mcp.CallToolRequest, a idArg) (*mcp.CallToolResult, any, error) {
@@ -225,7 +231,7 @@ func register(srv *mcp.Server, t *tools) {
 		func(ctx context.Context, _ *mcp.CallToolRequest, a idArg) (*mcp.CallToolResult, any, error) {
 			return result(t.svc.UpdateTask(ctx, t.uid, a.ID, service.TaskPatch{Closed: service.Some(true)}))
 		})
-	mcp.AddTool(srv, &mcp.Tool{Name: "reopen_task", Description: "Reopen a closed task."},
+	mcp.AddTool(srv, &mcp.Tool{Name: "reopen_task", Description: "Reopen an ended task (closed, cancelled or any terminal status)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, a idArg) (*mcp.CallToolResult, any, error) {
 			return result(t.svc.UpdateTask(ctx, t.uid, a.ID, service.TaskPatch{Closed: service.Some(false)}))
 		})
@@ -237,7 +243,7 @@ func register(srv *mcp.Server, t *tools) {
 		func(ctx context.Context, _ *mcp.CallToolRequest, a idArg) (*mcp.CallToolResult, any, error) {
 			return result(t.svc.RestoreTask(ctx, t.uid, a.ID))
 		})
-	mcp.AddTool(srv, &mcp.Tool{Name: "start_timer", Description: "Start tracking time on a task (reopens it if closed). Several timers can run at once."},
+	mcp.AddTool(srv, &mcp.Tool{Name: "start_timer", Description: "Start tracking time on a task (reopens it if it has ended). Several timers can run at once."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, a timerArgs) (*mcp.CallToolResult, any, error) {
 			return result(t.svc.StartTimer(ctx, t.uid, a.TaskID))
 		})

@@ -35,7 +35,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
           ))}
         </Box>
         <Typography variant="caption" color="text.secondary">
-          Filter syntax: project:kala · -project: (inbox) · is:open · due:&lt;=today · priority:high · "text" · sort:due
+          Filter syntax: project:kala · -project: (inbox) · -status:closed,cancelled (open) · timer:running · due:&lt;=today · ended:week · priority:high · "text" · sort:due
         </Typography>
       </DialogContent>
     </Dialog>
