@@ -11,19 +11,22 @@ import LabelOutlinedIcon from '@mui/icons-material/LabelOutlined';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
-import { useActions, useNamespaces, useTags } from '../api/hooks';
+import { useActions, useNamespaces, useOpenQuery, useTags } from '../api/hooks';
 import { useTaskDrop } from '../lib/dnd';
 import { tasksPath } from '../lib/useCurrentQuery';
 import type { Tag } from '../api/types';
-import { buildTree, tagColor, withNamespaceValues, type TagNode } from '../lib/tags';
+import { buildTree, tagColor, tagQuery, withNamespaceValues, type TagNode } from '../lib/tags';
 import { useTagMap } from './TagChip';
 import { useUi } from './ui';
 
-export function tagQuery(name: string): string {
-  return name.includes(':') ? `${name} is:open` : `#${name} is:open`;
+/** Returns the filter a tag link opens (see tagQuery in lib/tags). */
+export function useTagQuery(): (name: string) => string {
+  const { data: nss } = useNamespaces();
+  const { data: open } = useOpenQuery();
+  return useCallback((name: string) => tagQuery(name, nss, open), [nss, open]);
 }
 
 /** Drop target that adds a tag to the dropped tasks. */
@@ -83,7 +86,8 @@ function DeleteTagButton({ tag, selected }: { tag: Tag; selected: boolean }) {
 function TreeItem({ node, depth, current, listed }: { node: TagNode; depth: number; current: string; listed: Set<string> }) {
   const [open, setOpen] = useState(false);
   const map = useTagMap();
-  const q = tagQuery(node.name);
+  const toQuery = useTagQuery();
+  const q = toQuery(node.name);
   const hasKids = node.children.length > 0;
   // A bare namespace (status, client…) is not a tag you can apply.
   const drop = useTagDrop(node.name, node.name.includes(':') || !hasKids);
@@ -126,7 +130,8 @@ function TreeItem({ node, depth, current, listed }: { node: TagNode; depth: numb
 
 function PinnedItem({ tag, current }: { tag: Tag; current: string }) {
   const drop = useTagDrop(tag.name);
-  const q = tagQuery(tag.name);
+  const toQuery = useTagQuery();
+  const q = toQuery(tag.name);
   return (
     <ListItemButton
       dense

@@ -26,7 +26,7 @@ type Tag struct {
 // Tags lists every tag of a user.
 func (s *Service) Tags(ctx context.Context, userID int64) ([]Tag, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT g.id, g.name, g.color, g.pinned, g.position,
-			COALESCE(SUM(CASE WHEN t.id IS NOT NULL AND t.closed_at IS NULL THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN t.id IS NOT NULL AND t.ended_at IS NULL THEN 1 ELSE 0 END), 0),
 			COUNT(t.id)
 		FROM tags g
 		LEFT JOIN task_tags tt ON tt.tag_id = g.id
@@ -269,7 +269,7 @@ func (s *Service) RenameTag(ctx context.Context, userID int64, in RenameInput) (
 			taskIDs = append(taskIDs, id)
 		}
 		prev.Applied = true
-		return s.recomputeClosed(ctx, tx, userID, taskIDs)
+		return s.recomputeEnded(ctx, tx, userID, taskIDs)
 	})
 	if err != nil {
 		return nil, err
@@ -353,7 +353,7 @@ func (s *Service) DeleteTag(ctx context.Context, userID, id int64) error {
 		for t := range affected {
 			taskIDs = append(taskIDs, t)
 		}
-		return s.recomputeClosed(ctx, tx, userID, taskIDs)
+		return s.recomputeEnded(ctx, tx, userID, taskIDs)
 	})
 	if err == nil {
 		s.publish(userID, "tags", "tasks")

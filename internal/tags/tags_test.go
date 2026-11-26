@@ -74,3 +74,17 @@ func TestRulesValidateExclusive(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenQuery(t *testing.T) {
+	nss := []Namespace{
+		{Name: "phase", Values: []Value{{Value: "build"}, {Value: "shipped", Terminal: true}}},
+		{Name: "priority", Values: []Value{{Value: "high"}}},
+		{Name: "status", Values: []Value{{Value: "open"}, {Value: "closed", Terminal: true}, {Value: "cancelled", Terminal: true}}},
+	}
+	if got, want := OpenQuery(nss), "-phase:shipped -status:closed,cancelled"; got != want {
+		t.Errorf("OpenQuery = %q, want %q", got, want)
+	}
+	if got := OpenQuery(nss[1:2]); got != "" {
+		t.Errorf("no terminal values: %q", got)
+	}
+}

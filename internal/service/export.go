@@ -9,8 +9,9 @@ import (
 	"kala/internal/tags"
 )
 
-// ExportVersion is the current export format version.
-const ExportVersion = 1
+// ExportVersion is the current export format version. Version 2 renamed the
+// task field closed_at to ended_at; version 1 exports can still be imported.
+const ExportVersion = 2
 
 // Export is the portable dump of one user's data.
 type Export struct {
@@ -29,7 +30,10 @@ type Export struct {
 // ExportTask is a task with its time entries.
 type ExportTask struct {
 	Task
-	Entries []ExportEntry `json:"entries"`
+	// ClosedAt is ended_at under its version 1 name; it is only read when
+	// importing a version 1 export.
+	ClosedAt *time.Time    `json:"closed_at,omitempty"`
+	Entries  []ExportEntry `json:"entries"`
 }
 
 // ExportEntry is a time entry in an export.
@@ -103,7 +107,15 @@ type ImportResult struct {
 // namespaces with the same name are kept; tasks are always added.
 // Imported tasks keep their tags as-is (no namespace defaults are applied).
 func (s *Service) Import(ctx context.Context, userID int64, ex *Export) (*ImportResult, error) {
-	if ex.Version != ExportVersion {
+	switch ex.Version {
+	case 1:
+		for i := range ex.Tasks {
+			if t := &ex.Tasks[i]; t.EndedAt == nil {
+				t.EndedAt = t.ClosedAt
+			}
+		}
+	case ExportVersion:
+	default:
 		return nil, errf(CodeInvalid, "unsupported export version %d", ex.Version)
 	}
 	res := &ImportResult{}
@@ -155,9 +167,9 @@ func (s *Service) Import(ctx context.Context, userID int64, ex *Export) (*Import
 				return errf(CodeInvalid, "%s", err.Error())
 			}
 			var id int64
-			if err := tx.QueryRowContext(ctx, `INSERT INTO tasks (user_id, title, notes, due_date, remind_at, reminded_at, closed_at, deleted_at, created_at, updated_at)
+			if err := tx.QueryRowContext(ctx, `INSERT INTO tasks (user_id, title, notes, due_date, remind_at, reminded_at, ended_at, deleted_at, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, userID, title, t.Notes, t.DueDate, tsOrNil(t.RemindAt), tsOrNil(t.RemindedAt),
-				tsOrNil(t.ClosedAt), tsOrNil(t.DeletedAt), ts(t.CreatedAt), ts(t.UpdatedAt)).Scan(&id); err != nil {
+				tsOrNil(t.EndedAt), tsOrNil(t.DeletedAt), ts(t.CreatedAt), ts(t.UpdatedAt)).Scan(&id); err != nil {
 				return err
 			}
 			if err := setTaskTags(ctx, tx, userID, id, set); err != nil {
@@ -178,7 +190,7 @@ func (s *Service) Import(ctx context.Context, userID int64, ex *Export) (*Import
 			}
 			res.Tasks++
 		}
-		return s.recomputeClosed(ctx, tx, userID, nil)
+		return s.recomputeEnded(ctx, tx, userID, nil)
 	})
 	if err != nil {
 		return nil, err

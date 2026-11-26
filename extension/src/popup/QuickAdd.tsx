@@ -13,7 +13,6 @@ interface Props {
 }
 
 /** Open tasks most recently created or timed. */
-const recentQuery = 'is:open sort:-activity';
 
 /** Keep in step with TIMER_SPENT_ERROR in web/src/components/QuickPreview.tsx. */
 const timerSpentError = 'spent: logs time already spent and can’t be combined with a timer';
@@ -38,6 +37,8 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   const [recent, setRecent] = useState<Task[]>([]);
   const [timers, setTimers] = useState<TimeEntry[]>([]);
   const [nss, setNss] = useState<Namespace[]>([]);
+  // The filter for open tasks; undefined until loaded, so searches wait for it.
+  const [openQuery, setOpenQuery] = useState<string | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
   const colors = useMemo(() => new Map(tags.map((t) => [t.name, t.color])), [tags]);
 
@@ -58,7 +59,7 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   const error = setupError || submitError || parseError || spentError;
 
   // Search by the parsed title so tag, due and remind tokens don't narrow the matches.
-  const query = !empty && !setupError && preview ? searchQuery(preview.title) : null;
+  const query = !empty && !setupError && preview && openQuery !== undefined ? searchQuery(preview.title, openQuery) : null;
   useEffect(() => {
     if (!query) return;
     get<Task[]>(`/tasks?limit=6&q=${encodeURIComponent(query)}`)
@@ -67,7 +68,13 @@ export function QuickAdd({ tags, setupError, onDone }: Props) {
   }, [query]);
   useEffect(() => {
     if (setupError) return;
-    get<Task[]>(`/tasks?limit=5&q=${encodeURIComponent(recentQuery)}`)
+    // A server without /filters/open falls back to every task.
+    get<{ query: string }>('/filters/open')
+      .then((r) => r.query, () => '')
+      .then((open) => {
+        setOpenQuery(open);
+        return get<Task[]>(`/tasks?limit=5&q=${encodeURIComponent(`${open} sort:-activity`.trim())}`);
+      })
       .then(setRecent)
       .catch(() => setRecent([]));
     get<TimeEntry[]>('/timers/active')

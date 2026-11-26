@@ -47,6 +47,15 @@ func (s *Service) Namespaces(ctx context.Context, userID int64) ([]tags.Namespac
 	return s.listNamespaces(ctx, s.db, userID)
 }
 
+// OpenQuery returns the filter for a user's open tasks (see tags.OpenQuery).
+func (s *Service) OpenQuery(ctx context.Context, userID int64) (string, error) {
+	nss, err := s.listNamespaces(ctx, s.db, userID)
+	if err != nil {
+		return "", err
+	}
+	return tags.OpenQuery(nss), nil
+}
+
 func insertNamespace(ctx context.Context, q querier, userID int64, ns tags.Namespace) (int64, error) {
 	var id int64
 	var def any
@@ -135,7 +144,7 @@ func (s *Service) saveNamespace(ctx context.Context, userID, id int64, ns tags.N
 				return err
 			}
 		}
-		return s.recomputeClosed(ctx, tx, userID, nil)
+		return s.recomputeEnded(ctx, tx, userID, nil)
 	})
 	if err != nil {
 		return nil, err
@@ -208,7 +217,7 @@ func (s *Service) DeleteNamespace(ctx context.Context, userID, id int64) error {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return ErrNotFound
 		}
-		return s.recomputeClosed(ctx, tx, userID, nil)
+		return s.recomputeEnded(ctx, tx, userID, nil)
 	})
 	if err == nil {
 		s.publish(userID, "namespaces", "tasks")

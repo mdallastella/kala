@@ -3,7 +3,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import { Navigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
-import { useActions, useActiveTimers, useTasks } from '../api/hooks';
+import { useActions, useActiveTimers, useOpenQuery, useTasks } from '../api/hooks';
 import type { Task } from '../api/types';
 import { useNow } from '../components/TimerStrip';
 import { useUi } from '../components/ui';
@@ -42,6 +42,7 @@ export function DashboardPage() {
   const [params, setParams] = useSearchParams();
   const { data: timers = [] } = useActiveTimers();
   const { data: recent = [] } = useTasks('sort:-activity', RECENT);
+  const { data: open } = useOpenQuery();
   const { start, stop } = useActions();
   const ui = useUi();
   const now = useNow();
@@ -96,7 +97,7 @@ export function DashboardPage() {
             <List dense disablePadding>
               {recent.map((t) => {
                 const { at, tracked } = lastActivity(t);
-                const closed = t.closed_at != null;
+                const ended = t.ended_at != null;
                 return (
                   <ListItem
                     key={t.id}
@@ -118,7 +119,7 @@ export function DashboardPage() {
                         primary={t.title}
                         secondary={`${tracked ? 'tracked' : 'created'} ${ago(at, now)}`}
                         slotProps={{
-                          primary: { noWrap: true, sx: { textDecoration: closed ? 'line-through' : undefined, color: closed ? 'text.disabled' : undefined } },
+                          primary: { noWrap: true, sx: { textDecoration: ended ? 'line-through' : undefined, color: ended ? 'text.disabled' : undefined } },
                         }}
                       />
                     </ListItemButton>
@@ -129,7 +130,7 @@ export function DashboardPage() {
           )}
         </Column>
       </Box>
-      <TasksPage query="is:open sort:-created" title="Latest tasks" />
+      {open !== undefined && <TasksPage query={`${open} sort:-created`.trim()} title="Latest tasks" />}
     </Box>
   );
 }

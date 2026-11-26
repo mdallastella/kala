@@ -9,17 +9,19 @@ Go backend (single binary, SQLite) + React/Material UI frontend + MCP server.
 - **Namespaces** can be *exclusive* (one value per task: adding `status:closed` replaces `status:open`;
   the value is the first segment, so `client:acme` and `client:acme:ops` can coexist). An exclusive
   namespace with listed values only accepts those; with none it accepts any value. Namespaces can
-  have a *default* for new tasks, an *order* (used for sorting), and *terminal* values (the task is
-  closed while it carries one). New accounts get `status` (open*, pending, delegated, closed†,
+  have a *default* for new tasks, an *order* (used for sorting), and *terminal* values (the task has
+  *ended*, and `ended_at` is set, while it carries one or a sub-value of one, such as `status:closed:won`).
+  New accounts get `status` (open*, pending, delegated, closed†,
   cancelled†), `priority` (high, medium, low) and `project`.
 - **Priority** comes from the `priority:` tag or, for open tasks without one, from the due date:
   overdue or today → high, within 3 days → medium, later or none → low.
 - **Due dates** are calendar days. **Reminders** are exact times; one left unacknowledged comes back
   once a day. Per-weekday **working hours** drive a
   morning briefing and an end-of-day wrap-up, which warns about running timers.
-- **Time tracking:** any number of timers can run at once (one per task). Closing a task stops its timer,
-  and starting a timer on a closed task reopens it. Reports group by day, task, tag or any namespace.
-- **Live sync** over server-sent events. Deleted tasks go to the trash for 30 days. JSON export/import.
+- **Time tracking:** any number of timers can run at once (one per task). Ending a task stops its timer,
+  and starting a timer on an ended task reopens it. Reports group by day, task, tag or any namespace.
+- **Live sync** over server-sent events. Deleted tasks go to the trash for 30 days. JSON export/import
+  (format version 2; version 1 exports, which call `ended_at` `closed_at`, still import).
 
 ## Run
 
@@ -130,11 +132,19 @@ Space-separated terms, all must match; prefix a term with `-` to negate it.
 project:kala            tag or any descendant         project:a,b     either
 project:                any project                   -project:       no project (inbox)
 #urgent                 tag without namespace         "free text"     title or notes
-is:open|closed|running|reminder
+status:pending          tasks with that status        -status:closed,cancelled   open tasks
+timer:running           a timer is running            remind:pending  reminder not acknowledged yet
 due:today|tomorrow|overdue|week|none|any   due:<=fri   due:2026-11-01
-remind:today|due        closed:today|week|>=2026-10-01
-sort:priority,due,-created   (a namespace name sorts by its value order; also tracked, activity)
+remind:today|due        ended:today|week|>=2026-10-01 (when the task got a terminal value)
+sort:priority,due,-created   (a namespace name sorts by its value order; also ended, tracked, activity)
 ```
+
+Status is a tag, so there is no `is:` term: open tasks are the ones without a terminal value. The server
+builds that filter from your namespaces (`GET /api/v1/filters/open`, `-status:closed,cancelled` with the
+defaults). The task list, sidebar, calendar and extension use it as their default, so they follow your
+terminal values when you change them in Settings. Clicking a tag in a namespace with terminal values
+(`status:…`) shows exactly that tag; other tags show their open tasks. `is:…`, `closed:` and `sort:closed`
+are rejected with a hint (`closed:` is now `ended:`).
 
 ## MCP
 
@@ -149,7 +159,8 @@ claude mcp add --transport http kala https://kala.example.com/mcp \
 Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `add_tags`, `remove_tags`, `close_task`,
 `reopen_task`, `delete_task` (to trash), `restore_task`, `start_timer`, `start_timer_new_task`, `stop_timer`,
 `list_active_timers`, `list_time_entries`, `delete_time_entry`, `time_report`, `list_tags`, `rename_tag`,
-`list_namespaces`, `today_briefing`. Tokens also work as bearer tokens on the REST API.
+`list_namespaces`, `today_briefing`. `search_tasks` takes `open_only: true` to list tasks that have not ended.
+Tokens also work as bearer tokens on the REST API.
 
 ## Chrome extension
 
@@ -168,7 +179,8 @@ Change the shortcut at `chrome://extensions/shortcuts` ("Activate the extension"
 
 JSON under `/api/v1`. `POST /tasks` and `PATCH /tasks/{id}` take a `quick` line alongside the explicit fields
 (explicit fields win); clear `due_date` / `remind_at` with `null` (other fields reject it). `POST /tasks/bulk` ops: `add_tags`,
-`remove_tags`, `set_due`, `set_remind`, `close`, `reopen`, `delete`, `restore`. Errors are `{"error": {"code", "message", "details?"}}`. Authenticate with
+`remove_tags`, `set_due`, `set_remind`, `close`, `reopen`, `delete`, `restore`. `GET /filters/open` returns
+`{"query": "…"}`, the filter for open tasks. Errors are `{"error": {"code", "message", "details?"}}`. Authenticate with
 `Authorization: Bearer <access JWT | personal access token>`. Access JWTs last 15 minutes and are
 renewed with `POST /auth/refresh`, using the HttpOnly refresh cookie (rotated on every use; reusing
 a token more than a few seconds after its rotation signs the user out of every session). See `internal/api/routes.go` for the full route list.

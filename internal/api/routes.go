@@ -60,6 +60,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.Handle("POST "+p+"namespaces", s.authed(s.createNamespace))
 	mux.Handle("PUT "+p+"namespaces/{id}", s.authed(s.updateNamespace))
 	mux.Handle("DELETE "+p+"namespaces/{id}", s.authed(s.deleteNamespace))
+	mux.Handle("GET "+p+"filters/open", s.authed(s.openFilter))
 
 	mux.Handle("POST "+p+"reminders/{id}/ack", s.authed(s.ackReminder))
 	mux.Handle("GET "+p+"digest/briefing", s.authed(s.briefing))
@@ -589,6 +590,15 @@ func (s *Server) listNamespaces(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return writeJSON(w, http.StatusOK, list)
+}
+
+// openFilter returns the filter for open tasks, built from the namespaces.
+func (s *Server) openFilter(w http.ResponseWriter, r *http.Request) error {
+	q, err := s.svc.OpenQuery(r.Context(), uid(r))
+	if err != nil {
+		return err
+	}
+	return writeJSON(w, http.StatusOK, map[string]string{"query": q})
 }
 
 func (s *Server) createNamespace(w http.ResponseWriter, r *http.Request) error {

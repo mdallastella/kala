@@ -33,7 +33,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { DatePrompt } from './DatePrompt';
 import { Notifications } from './Notifications';
 import { QuickAdd } from './QuickAdd';
-import { Sidebar, tagQuery } from './Sidebar';
+import { Sidebar, useTagQuery } from './Sidebar';
 import { TagPicker } from './TagPicker';
 import { TimerStrip, useTimerFavicon } from './TimerStrip';
 import { UiContext, type ConfirmOptions, type NotifyAction, type Ui } from './ui';
@@ -110,6 +110,7 @@ export function Shell() {
   ];
   useHotkeys(global);
 
+  const toQuery = useTagQuery();
   const commands: Command[] = useMemo(() => {
     const cmds: Command[] = [
       { id: 'quick', label: 'Add task', group: 'Actions', keys: 'q', run: () => ui.quickAdd() },
@@ -126,10 +127,10 @@ export function Shell() {
       { id: 'settings', label: 'Settings', group: 'Go to', keys: 'g ,', run: () => navigate('/settings') },
     ];
     for (const t of tags)
-      cmds.push({ id: `tag-${t.id}`, label: t.name, hint: `${t.open} open`, group: 'Tags', run: () => navigate(tasksPath(tagQuery(t.name))) });
+      cmds.push({ id: `tag-${t.id}`, label: t.name, hint: `${t.open} open`, group: 'Tags', run: () => navigate(tasksPath(toQuery(t.name))) });
     return cmds;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tags, dark, ui]);
+  }, [tags, dark, ui, toQuery]);
 
   const applyFilter = () => {
     navigate(tasksPath(filterText.trim()));
@@ -160,7 +161,7 @@ export function Shell() {
                 }
               }}
               onBlur={() => setDraft(null)}
-              placeholder="Filter: project:kala is:open due:<=today   ( / )"
+              placeholder="Filter: project:kala -status:closed,cancelled due:<=today   ( / )"
               sx={{ flex: 1, maxWidth: 560 }}
               slotProps={{
                 input: {

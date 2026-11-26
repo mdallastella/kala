@@ -24,8 +24,9 @@ describe('quickadd', () => {
     expect(completeToken('x !hi', 'high')).toBe('x !high ');
   });
   it('builds the search query from the parsed title', () => {
-    expect(searchQuery(' write "report" ')).toBe('"write report" is:open');
-    expect(searchQuery('a')).toBeNull();
+    expect(searchQuery(' write "report" ', '-status:closed,cancelled')).toBe('"write report" -status:closed,cancelled');
+    expect(searchQuery('write', '')).toBe('"write"');
+    expect(searchQuery('a', '-status:closed')).toBeNull();
   });
   it('colours tags from the nearest ancestor', () => {
     const colors = new Map([['project', '#123456']]);

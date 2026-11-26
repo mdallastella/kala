@@ -99,8 +99,8 @@ func TestVikunja(t *testing.T) {
 			if call.DueDate == nil || *call.DueDate != "2026-11-05" {
 				t.Errorf("due = %v, want 2026-11-05 (Rome)", call.DueDate)
 			}
-			if call.ClosedAt != nil {
-				t.Error("open task has closed_at")
+			if call.EndedAt != nil {
+				t.Error("open task has ended_at")
 			}
 
 			first := byID(tasks, "Supporto Zaitex", 0)
@@ -111,8 +111,8 @@ func TestVikunja(t *testing.T) {
 			if first.Notes != "Keep this line" {
 				t.Errorf("notes = %q", first.Notes)
 			}
-			if !first.closedGuessed || first.ClosedAt == nil || !first.ClosedAt.Equal(first.UpdatedAt) {
-				t.Errorf("closed_at = %v, guessed = %v", first.ClosedAt, first.closedGuessed)
+			if !first.endedGuessed || first.EndedAt == nil || !first.EndedAt.Equal(first.UpdatedAt) {
+				t.Errorf("ended_at = %v, guessed = %v", first.EndedAt, first.endedGuessed)
 			}
 			if first.DueDate != nil {
 				t.Error("zero due date imported")
@@ -126,8 +126,8 @@ func TestVikunja(t *testing.T) {
 			if second.RemindAt == nil || second.RemindedAt == nil {
 				t.Error("past reminder not imported as already sent")
 			}
-			if second.closedGuessed || !second.ClosedAt.Equal(time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)) {
-				t.Errorf("closed_at = %v", second.ClosedAt)
+			if second.endedGuessed || !second.EndedAt.Equal(time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)) {
+				t.Errorf("ended_at = %v", second.EndedAt)
 			}
 		})
 	}
@@ -220,11 +220,11 @@ func TestConvert(t *testing.T) {
 	if matched == nil || !matched.UpdatedAt.Equal(time.Date(2026, 10, 15, 8, 0, 0, 0, time.UTC)) || len(matched.Entries) != 2 {
 		t.Fatalf("matched = %+v", matched)
 	}
-	if want := time.Date(2026, 10, 15, 7, 30, 0, 0, time.UTC); !matched.ClosedAt.Equal(want) {
-		t.Errorf("closed_at = %v, want %v", matched.ClosedAt.UTC(), want)
+	if want := time.Date(2026, 10, 15, 7, 30, 0, 0, time.UTC); !matched.EndedAt.Equal(want) {
+		t.Errorf("ended_at = %v, want %v", matched.EndedAt.UTC(), want)
 	}
 	// Same title in another project: a new closed task.
-	if coso == nil || !slices.Equal(coso.Tags, []string{"project:coso", "status:closed"}) || coso.ClosedAt == nil {
+	if coso == nil || !slices.Equal(coso.Tags, []string{"project:coso", "status:closed"}) || coso.EndedAt == nil {
 		t.Fatalf("coso = %+v", coso)
 	}
 
@@ -252,7 +252,7 @@ func TestConvert(t *testing.T) {
 	}
 	var openTitles []string
 	for _, ot := range open {
-		if ot.ClosedAt == nil {
+		if ot.EndedAt == nil {
 			openTitles = append(openTitles, ot.Title)
 		}
 	}

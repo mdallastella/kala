@@ -26,7 +26,7 @@ type Task struct {
 	DueDate    *string    `json:"due_date"`
 	RemindAt   *time.Time `json:"remind_at"`
 	RemindedAt *time.Time `json:"reminded_at"`
-	ClosedAt   *time.Time `json:"closed_at"`
+	EndedAt    *time.Time `json:"ended_at"`
 	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
@@ -59,13 +59,15 @@ func ensureTag(ctx context.Context, q querier, userID int64, name string) (int64
 
 const terminalExists = `EXISTS (SELECT 1 FROM task_tags tt JOIN tags g ON g.id = tt.tag_id
 	JOIN namespaces n ON n.user_id = g.user_id
-	JOIN namespace_values nv ON nv.namespace_id = n.id AND nv.terminal = 1 AND g.name = n.name || ':' || nv.value
-	WHERE tt.task_id = tasks.id)`
+	JOIN namespace_values nv ON nv.namespace_id = n.id AND nv.terminal = 1
+	WHERE tt.task_id = tasks.id AND (g.name = n.name || ':' || nv.value
+		OR substr(g.name, 1, length(n.name) + length(nv.value) + 2) = n.name || ':' || nv.value || ':'))`
 
-// recomputeClosed brings closed_at in line with the tasks' tags: a task is
-// closed while it carries a terminal value. Newly closed tasks get their
-// running timer stopped. taskIDs nil means every task of the user.
-func (s *Service) recomputeClosed(ctx context.Context, q querier, userID int64, taskIDs []int64) error {
+// recomputeEnded brings ended_at in line with the tasks' tags: a task has
+// ended while it carries a terminal value or one of its sub-values. Newly
+// ended tasks get their running timer stopped. taskIDs nil means every task
+// of the user.
+func (s *Service) recomputeEnded(ctx context.Context, q querier, userID int64, taskIDs []int64) error {
 	scope := ""
 	args := []any{userID}
 	if taskIDs != nil {
@@ -74,15 +76,15 @@ func (s *Service) recomputeClosed(ctx context.Context, q querier, userID int64, 
 	}
 	now := ts(s.now())
 	if _, err := q.ExecContext(ctx, `UPDATE time_entries SET stopped_at = ? WHERE stopped_at IS NULL AND task_id IN (
-		SELECT id FROM tasks WHERE user_id = ? AND closed_at IS NULL AND `+terminalExists+scope+`)`,
+		SELECT id FROM tasks WHERE user_id = ? AND ended_at IS NULL AND `+terminalExists+scope+`)`,
 		append([]any{now}, args...)...); err != nil {
 		return err
 	}
-	if _, err := q.ExecContext(ctx, `UPDATE tasks SET closed_at = ? WHERE user_id = ? AND closed_at IS NULL AND `+terminalExists+scope,
+	if _, err := q.ExecContext(ctx, `UPDATE tasks SET ended_at = ? WHERE user_id = ? AND ended_at IS NULL AND `+terminalExists+scope,
 		append([]any{now}, args...)...); err != nil {
 		return err
 	}
-	_, err := q.ExecContext(ctx, `UPDATE tasks SET closed_at = NULL WHERE user_id = ? AND closed_at IS NOT NULL AND NOT `+terminalExists+scope, args...)
+	_, err := q.ExecContext(ctx, `UPDATE tasks SET ended_at = NULL WHERE user_id = ? AND ended_at IS NOT NULL AND NOT `+terminalExists+scope, args...)
 	return err
 }
 
@@ -169,7 +171,7 @@ func statusTag(rules tags.Rules, closed bool) (string, error) {
 	return "", errf(CodeInvalid, "the %q namespace has no open value", StatusNS)
 }
 
-const taskColumns = `t.id, t.title, t.notes, t.due_date, t.remind_at, t.reminded_at, t.closed_at, t.deleted_at, t.created_at, t.updated_at,
+const taskColumns = `t.id, t.title, t.notes, t.due_date, t.remind_at, t.reminded_at, t.ended_at, t.deleted_at, t.created_at, t.updated_at,
 	(SELECT e.started_at FROM time_entries e WHERE e.task_id = t.id AND e.stopped_at IS NULL),
 	(SELECT COALESCE(SUM(CAST(ROUND((julianday(e.stopped_at) - julianday(e.started_at)) * 86400) AS INTEGER)), 0)
 		FROM time_entries e WHERE e.task_id = t.id AND e.stopped_at IS NOT NULL),
@@ -194,7 +196,7 @@ func scanTasks(ctx context.Context, q querier, query string, args ...any) ([]Tas
 			return nil, err
 		}
 		t.DueDate = nullString(due)
-		t.RemindAt, t.RemindedAt, t.ClosedAt, t.DeletedAt = nullTime(remind), nullTime(reminded), nullTime(closed), nullTime(del)
+		t.RemindAt, t.RemindedAt, t.EndedAt, t.DeletedAt = nullTime(remind), nullTime(reminded), nullTime(closed), nullTime(del)
 		t.RunningSince, t.LastTrackedAt = nullTime(runs), nullTime(tracked)
 		t.CreatedAt, t.UpdatedAt = parseTS(created), parseTS(updated)
 		t.Tags = []string{}
@@ -257,7 +259,7 @@ func (s *Service) fillPriority(ctx context.Context, q querier, userID int64, ts 
 				break
 			}
 		}
-		if t.Priority != "" || t.ClosedAt != nil {
+		if t.Priority != "" || t.EndedAt != nil {
 			continue
 		}
 		due := ""
@@ -299,6 +301,9 @@ type ListOptions struct {
 	Limit int
 	// Deleted lists the trash instead of live tasks.
 	Deleted bool
+	// OpenOnly restricts the listing to tasks that have not ended, the same
+	// set the user's OpenQuery matches.
+	OpenOnly bool
 }
 
 // MaxList is the maximum number of tasks returned by one listing.
@@ -318,6 +323,9 @@ func (s *Service) Tasks(ctx context.Context, userID int64, opts ListOptions) ([]
 		opts.Limit = MaxList
 	}
 	deleted, order := "t.deleted_at IS NULL", fq.Order
+	if opts.OpenOnly {
+		deleted += " AND t.ended_at IS NULL"
+	}
 	if opts.Deleted {
 		deleted, order = "t.deleted_at IS NOT NULL", "t.deleted_at DESC"
 		fq.OrderArgs = nil
@@ -447,7 +455,7 @@ func (s *Service) createTask(ctx context.Context, tx *sql.Tx, userID int64, in T
 			return 0, err
 		}
 	}
-	return id, s.recomputeClosed(ctx, tx, userID, []int64{id})
+	return id, s.recomputeEnded(ctx, tx, userID, []int64{id})
 }
 
 // CreateTask creates a task.
@@ -612,7 +620,7 @@ func (s *Service) updateTask(ctx context.Context, tx *sql.Tx, userID, id int64, 
 			return err
 		}
 	}
-	return s.recomputeClosed(ctx, tx, userID, []int64{id})
+	return s.recomputeEnded(ctx, tx, userID, []int64{id})
 }
 
 // DeleteTask moves a task to the trash, stopping its timer.

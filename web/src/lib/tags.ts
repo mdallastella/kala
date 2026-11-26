@@ -13,6 +13,18 @@ export function namespaceOf(tag: string): string {
   return i < 0 ? tag : tag.slice(0, i);
 }
 
+/**
+ * The filter a tag link opens: the tag plus the open query, except for tags in
+ * a namespace with terminal values (status…), whose values already say
+ * whether the task is open.
+ */
+export function tagQuery(name: string, nss: Namespace[] | undefined, openQuery: string | undefined): string {
+  const term = name.includes(':') ? name : `#${name}`;
+  const ns = namespaceOf(name);
+  const terminal = nss?.some((n) => n.name === ns && n.values.some((v) => v.terminal));
+  return terminal || !openQuery ? term : `${term} ${openQuery}`;
+}
+
 export function valueOf(tag: string): string {
   const i = tag.indexOf(':');
   return i < 0 ? '' : tag.slice(i + 1);

@@ -19,7 +19,7 @@ export interface Task {
   due_date: string | null;
   remind_at: string | null;
   reminded_at: string | null;
-  closed_at: string | null;
+  ended_at: string | null;
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;

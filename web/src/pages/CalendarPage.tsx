@@ -4,7 +4,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
-import { useActions, useTasks } from '../api/hooks';
+import { useActions, useOpenQuery, useTasks } from '../api/hooks';
 import type { Task } from '../api/types';
 import { visuallyHidden } from '../components/a11y';
 import { useUi } from '../components/ui';
@@ -25,7 +25,7 @@ function useDueDrop(due: string | null) {
 }
 
 function CalendarTask({ task }: { task: Task }) {
-  const closed = task.closed_at != null;
+  const ended = task.ended_at != null;
   return (
     <Box
       component={Link}
@@ -55,7 +55,7 @@ function CalendarTask({ task }: { task: Task }) {
           opacity: task.priority_derived ? 0.35 : 1,
         }}
       />
-      <Typography variant="caption" noWrap sx={{ textDecoration: closed ? 'line-through' : undefined, color: closed ? 'text.disabled' : 'text.primary' }}>
+      <Typography variant="caption" noWrap sx={{ textDecoration: ended ? 'line-through' : undefined, color: ended ? 'text.disabled' : 'text.primary' }}>
         {task.title}
       </Typography>
     </Box>
@@ -104,8 +104,8 @@ function DayCell({ day, tasks, inMonth, today, focused, onFocus }: { day: string
   );
 }
 
-function Unscheduled({ q }: { q: string }) {
-  const { data: tasks = [] } = useTasks(`${q} due:none`);
+function Unscheduled({ q }: { q: string | undefined }) {
+  const { data: tasks = [] } = useTasks(q === undefined ? undefined : `${q} due:none`);
   const drop = useDueDrop(null);
   return (
     <Box
@@ -128,13 +128,14 @@ function Unscheduled({ q }: { q: string }) {
 export function CalendarPage() {
   usePageTitle('Calendar');
   const [params] = useSearchParams();
-  const q = params.get('q') ?? 'is:open';
+  const { data: open } = useOpenQuery();
+  const q = params.get('q') ?? open;
   const navigate = useNavigate();
   const [focus, setFocus] = useState(() => todayDate());
   const days = monthGrid(focus);
   const first = isoDate(days[0]);
   const last = isoDate(days[days.length - 1]);
-  const { data: tasks = [] } = useTasks(`${q} due:>=${first} due:<=${last} sort:due,priority`);
+  const { data: tasks = [] } = useTasks(q === undefined ? undefined : `${q} due:>=${first} due:<=${last} sort:due,priority`);
   const byDay = new Map<string, Task[]>();
   for (const t of tasks) if (t.due_date) byDay.set(t.due_date, [...(byDay.get(t.due_date) ?? []), t]);
 

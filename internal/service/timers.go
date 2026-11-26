@@ -35,7 +35,7 @@ func (s *Service) startTimer(ctx context.Context, tx *sql.Tx, userID, taskID int
 	if task.RunningSince != nil {
 		return errf(CodeConflict, "a timer is already running for this task")
 	}
-	if task.ClosedAt != nil {
+	if task.EndedAt != nil {
 		rules, err := s.rules(ctx, tx, userID)
 		if err != nil {
 			return err
@@ -47,7 +47,7 @@ func (s *Service) startTimer(ctx context.Context, tx *sql.Tx, userID, taskID int
 		if err := s.mutateTags(ctx, tx, rules, userID, taskID, []string{open}, nil); err != nil {
 			return err
 		}
-		if err := s.recomputeClosed(ctx, tx, userID, []int64{taskID}); err != nil {
+		if err := s.recomputeEnded(ctx, tx, userID, []int64{taskID}); err != nil {
 			return err
 		}
 	}

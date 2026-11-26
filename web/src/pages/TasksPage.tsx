@@ -24,12 +24,13 @@ export function TasksPage({ query, title = 'Tasks' }: Props) {
   const [params, setParams] = useSearchParams();
   const current = useCurrentQuery();
   const q = query ?? current.q;
+  const ready = query != null || current.ready;
   const ui = useUi();
   const taskId = Number(params.get('task')) || null;
   // The home page embeds this list and sets its own title.
   usePageTitle(query == null ? q || undefined : null, 'Tasks');
 
-  const { data: tasks = [], error, isPending } = useTasks(q);
+  const { data: tasks = [], error, isPending } = useTasks(ready ? q : undefined);
   const { data: nss } = useNamespaces();
   const actions = useActions();
   const now = useNow();
@@ -86,7 +87,7 @@ export function TasksPage({ query, title = 'Tasks' }: Props) {
     else actions.bulk.mutate({ ids: ts.map((t) => t.id), op }, { onError: fail });
   };
   const toggleClosed = (ts = targets()) => {
-    if (ts.length) bulkOrSingle(ts, ts.every((t) => t.closed_at) ? 'reopen' : 'close');
+    if (ts.length) bulkOrSingle(ts, ts.every((t) => t.ended_at) ? 'reopen' : 'close');
   };
   const addTags = (tags: string[]) => {
     const ts = targets();

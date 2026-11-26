@@ -101,16 +101,16 @@ func TestQuickAddAndNamespaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	want = []string{"client:acme", "priority:low", "project:kala", "status:closed"}
-	if !slices.Equal(task.Tags, want) || task.ClosedAt == nil {
-		t.Fatalf("tags = %v closed = %v", task.Tags, task.ClosedAt)
+	if !slices.Equal(task.Tags, want) || task.EndedAt == nil {
+		t.Fatalf("tags = %v closed = %v", task.Tags, task.EndedAt)
 	}
 	// Removing the status falls back to the default.
 	task, err = s.UpdateTask(ctx, uid, task.ID, service.TaskPatch{RemoveTags: []string{"status:closed"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(task.Tags, "status:open") || task.ClosedAt != nil {
-		t.Fatalf("tags = %v closed = %v", task.Tags, task.ClosedAt)
+	if !slices.Contains(task.Tags, "status:open") || task.EndedAt != nil {
+		t.Fatalf("tags = %v closed = %v", task.Tags, task.EndedAt)
 	}
 	if _, err := s.UpdateTask(ctx, uid, task.ID, service.TaskPatch{AddTags: []string{"status:bogus"}}); !service.IsCode(err, service.CodeInvalid) {
 		t.Fatalf("undefined exclusive value: want invalid, got %v", err)
@@ -204,7 +204,7 @@ func TestNullFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ClosedAt == nil || !slices.Equal(got.Tags, []string{"status:closed", "x"}) || got.Notes != "n" {
+	if got.EndedAt == nil || !slices.Equal(got.Tags, []string{"status:closed", "x"}) || got.Notes != "n" {
 		t.Fatalf("rejected patches changed the task: %+v", got)
 	}
 	var p service.TaskPatch
@@ -339,7 +339,7 @@ func TestTimers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reopened.ClosedAt != nil || !slices.Contains(reopened.Tags, "status:open") {
+	if reopened.EndedAt != nil || !slices.Contains(reopened.Tags, "status:open") {
 		t.Fatalf("starting a timer must reopen: %+v", reopened)
 	}
 	c.advance(15 * time.Minute)
@@ -377,12 +377,15 @@ func TestFilters(t *testing.T) {
 	s, _ := newService(t)
 	ctx := context.Background()
 	uid := register(t, s, "a@example.com")
-	mustCreate(t, s, uid, service.TaskInput{Quick: "api work @kala:api due:today"})
+	api := mustCreate(t, s, uid, service.TaskInput{Quick: "api work @kala:api due:today"})
 	mustCreate(t, s, uid, service.TaskInput{Quick: "web work @kala:web due:yesterday !high"})
-	mustCreate(t, s, uid, service.TaskInput{Quick: "other @infra due:+3d"})
+	mustCreate(t, s, uid, service.TaskInput{Quick: "other @infra due:+3d remind:+2h"})
 	mustCreate(t, s, uid, service.TaskInput{Quick: "loose idea #someday"})
 	done := mustCreate(t, s, uid, service.TaskInput{Quick: "finished @kala"})
 	if _, err := s.UpdateTask(ctx, uid, done.ID, service.TaskPatch{Closed: service.Some(true)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.StartTimer(ctx, uid, api.ID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -391,18 +394,22 @@ func TestFilters(t *testing.T) {
 		want []string
 	}{
 		{"project:kala", []string{"api work", "finished", "web work"}},
-		{"project:kala is:open", []string{"api work", "web work"}},
+		{"project:kala -status:closed,cancelled", []string{"api work", "web work"}},
 		{"project:kala:api,infra", []string{"api work", "other"}},
-		{"-project: is:open", []string{"loose idea"}},
+		{"-project: -status:closed,cancelled", []string{"loose idea"}},
 		{"#someday", []string{"loose idea"}},
-		{"is:open due:<=today", []string{"api work", "web work"}},
+		{"-status:closed,cancelled due:<=today", []string{"api work", "web work"}},
 		{"due:overdue", []string{"web work"}},
 		{"due:week", []string{"api work", "other"}},
-		{"due:none is:open", []string{"loose idea"}},
+		{"due:none -status:closed,cancelled", []string{"loose idea"}},
 		{"priority:high", []string{"web work"}},
 		{`"work"`, []string{"api work", "web work"}},
-		{"-work is:open", []string{"loose idea", "other"}},
-		{"closed:today", []string{"finished"}},
+		{"-work -status:closed,cancelled", []string{"loose idea", "other"}},
+		{"ended:today", []string{"finished"}},
+		{"ended:<=today sort:-ended", []string{"finished"}},
+		{"remind:pending", []string{"other"}},
+		{"timer:running", []string{"api work"}},
+		{"-timer:running project:kala", []string{"finished", "web work"}},
 	}
 	for _, tc := range cases {
 		got, err := s.Tasks(ctx, uid, service.ListOptions{Query: tc.q})
@@ -415,7 +422,7 @@ func TestFilters(t *testing.T) {
 		}
 	}
 
-	sorted, err := s.Tasks(ctx, uid, service.ListOptions{Query: "is:open sort:priority,due"})
+	sorted, err := s.Tasks(ctx, uid, service.ListOptions{Query: "-status:closed,cancelled sort:priority,due"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,8 +440,94 @@ func TestFilters(t *testing.T) {
 	if closed, _ := s.Task(ctx, uid, done.ID); closed.Priority != "" {
 		t.Errorf("closed task priority = %q", closed.Priority)
 	}
-	if _, err := s.Tasks(ctx, uid, service.ListOptions{Query: "due:whenever"}); !service.IsCode(err, service.CodeInvalid) {
-		t.Errorf("bad filter: want invalid, got %v", err)
+	for _, bad := range []string{"due:whenever", "is:open", "is:closed", "is:running", "-is:open", "closed:today", "timer:stopped", "sort:closed"} {
+		if _, err := s.Tasks(ctx, uid, service.ListOptions{Query: bad}); !service.IsCode(err, service.CodeInvalid) {
+			t.Errorf("%q: want invalid, got %v", bad, err)
+		}
+	}
+	open, err := s.Tasks(ctx, uid, service.ListOptions{OpenOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"api work", "loose idea", "other", "web work"}; !slices.Equal(titles(open), want) {
+		t.Errorf("open only = %v, want %v", titles(open), want)
+	}
+}
+
+// TestEndedAndOpenQuery checks that every terminal value, its sub-values and
+// terminal values outside status end a task, and that OpenQuery and OpenOnly
+// agree with ended_at.
+func TestEndedAndOpenQuery(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+
+	q, err := s.OpenQuery(ctx, uid)
+	if err != nil || q != "-status:closed,cancelled" {
+		t.Fatalf("default open query = %q, %v", q, err)
+	}
+
+	won := mustCreate(t, s, uid, service.TaskInput{Title: "won"})
+	if _, err := s.StartTimer(ctx, uid, won.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.UpdateTask(ctx, uid, won.ID, service.TaskPatch{AddTags: []string{"status:closed:won"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.EndedAt == nil || got.RunningSince != nil {
+		t.Fatalf("status:closed:won: ended = %v running = %v", got.EndedAt, got.RunningSince)
+	}
+	if got, _ = s.UpdateTask(ctx, uid, won.ID, service.TaskPatch{AddTags: []string{"status:open"}}); got.EndedAt != nil {
+		t.Fatal("status:open did not reopen")
+	}
+	if _, err := s.UpdateTask(ctx, uid, won.ID, service.TaskPatch{AddTags: []string{"status:closed:won"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A terminal value outside status, and a renamed status value.
+	if _, err := s.CreateNamespace(ctx, uid, tags.Namespace{Name: "phase", Exclusive: true,
+		Values: []tags.Value{{Value: "build"}, {Value: "shipped", Terminal: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	nss, err := s.Namespaces(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ns := range nss {
+		if ns.Name != service.StatusNS {
+			continue
+		}
+		for i := range ns.Values {
+			if ns.Values[i].Value == "cancelled" {
+				ns.Values[i].Value = "dropped"
+			}
+		}
+		if _, err := s.UpdateNamespace(ctx, uid, ns.ID, ns); err != nil {
+			t.Fatal(err)
+		}
+	}
+	q, _ = s.OpenQuery(ctx, uid)
+	if q != "-phase:shipped -status:closed,dropped" {
+		t.Fatalf("open query = %q", q)
+	}
+	mustCreate(t, s, uid, service.TaskInput{Title: "building", Tags: []string{"phase:build"}})
+	mustCreate(t, s, uid, service.TaskInput{Title: "shipped", Tags: []string{"phase:shipped"}})
+	mustCreate(t, s, uid, service.TaskInput{Title: "dropped", Tags: []string{"status:dropped"}})
+	mustCreate(t, s, uid, service.TaskInput{Title: "pending", Tags: []string{"status:pending"}})
+
+	byQuery, err := s.Tasks(ctx, uid, service.ListOptions{Query: q + " sort:title"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byFlag, _ := s.Tasks(ctx, uid, service.ListOptions{Query: "sort:title", OpenOnly: true})
+	want := []string{"building", "pending"}
+	if !slices.Equal(titles(byQuery), want) || !slices.Equal(titles(byFlag), want) {
+		t.Fatalf("open by query = %v, by flag = %v, want %v", titles(byQuery), titles(byFlag), want)
+	}
+	ended, _ := s.Tasks(ctx, uid, service.ListOptions{Query: "ended:today sort:title"})
+	if want := []string{"dropped", "shipped", "won"}; !slices.Equal(titles(ended), want) {
+		t.Fatalf("ended = %v, want %v", titles(ended), want)
 	}
 }
 
@@ -662,6 +755,9 @@ func TestDigests(t *testing.T) {
 	mustCreate(t, s, uid, service.TaskInput{Quick: "now due:today remind:+5m"})
 	mustCreate(t, s, uid, service.TaskInput{Quick: "friday due:fri"})
 	t4 := mustCreate(t, s, uid, service.TaskInput{Quick: "thursday due:thu"})
+	// Ended tasks, by any terminal value, stay out of the digests.
+	mustCreate(t, s, uid, service.TaskInput{Quick: "dropped due:today #status:cancelled"})
+	mustCreate(t, s, uid, service.TaskInput{Quick: "won due:yesterday #status:closed:won"})
 
 	b, err := s.Briefing(ctx, uid)
 	if err != nil {
@@ -799,5 +895,38 @@ func TestQuickPreviewAndUpdate(t *testing.T) {
 	}
 	if err := s.Bulk(ctx, uid, service.BulkInput{IDs: []int64{task.ID}, Op: service.BulkSetRemind}); err == nil {
 		t.Error("set_remind without remind_at: want error")
+	}
+}
+
+func TestImportVersions(t *testing.T) {
+	s, _ := newService(t)
+	ctx := context.Background()
+	uid := register(t, s, "a@example.com")
+
+	v1 := `{"version": 1, "tasks": [{"title": "old", "tags": ["status:closed"], "closed_at": "2026-09-01T10:00:00Z",
+		"created_at": "2026-08-01T10:00:00Z", "updated_at": "2026-09-01T10:00:00Z", "entries": []}]}`
+	var ex service.Export
+	if err := json.Unmarshal([]byte(v1), &ex); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Import(ctx, uid, &ex); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.Tasks(ctx, uid, service.ListOptions{})
+	if len(list) != 1 || list[0].EndedAt == nil || !list[0].EndedAt.Equal(time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("v1 import = %+v", list)
+	}
+
+	out, err := s.Export(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(out)
+	if out.Version != 2 || !strings.Contains(string(raw), `"ended_at":"2026-09-01T10:00:00Z"`) || strings.Contains(string(raw), "closed_at") {
+		t.Fatalf("export = %s", raw)
+	}
+
+	if _, err := s.Import(ctx, uid, &service.Export{Version: 3}); !service.IsCode(err, service.CodeInvalid) {
+		t.Errorf("v3: want invalid, got %v", err)
 	}
 }
