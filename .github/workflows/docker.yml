@@ -53,6 +53,15 @@ jobs:
       - run: npm test
         working-directory: web
 
+      - run: npm ci
+        working-directory: extension
+      - run: npm run lint
+        working-directory: extension
+      - run: npm run typecheck
+        working-directory: extension
+      - run: npm test
+        working-directory: extension
+
   build:
     runs-on: ubuntu-latest
     permissions:
