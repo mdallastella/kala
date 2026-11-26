@@ -1,4 +1,4 @@
-.PHONY: build web go ext dev-api dev-web test lint fmt clean
+.PHONY: build web go ext icons dev-api dev-web test lint fmt clean
 
 BIN ?= kala
 
@@ -11,6 +11,12 @@ web:
 ## ext: Chrome extension into extension/dist (load it unpacked)
 ext:
 	cd extension && npm ci && npm run build
+
+## icons: render the extension PNG icons from extension/icons/*.svg (needs rsvg-convert)
+icons:
+	rsvg-convert -w 128 -h 128 extension/icons/icon-128.svg -o extension/public/icons/icon-128.png
+	for s in 16 32 48; do rsvg-convert -w $$s -h $$s extension/icons/icon.svg -o extension/public/icons/icon-$$s.png; done
+	-optipng -quiet -o7 extension/public/icons/*.png
 
 go:
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o $(BIN) ./cmd/kala
