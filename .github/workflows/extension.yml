@@ -1,8 +1,8 @@
 name: extension
 
 # Releases the Chrome extension to the Chrome Web Store: push a tag ext-vX.Y.Z
-# whose version matches extension/public/manifest.json. The item must already
-# exist (the API cannot create one); see README.md "Releasing to the Chrome Web Store".
+# whose version matches extension/public/manifest.json. One-time setup (store item,
+# Google Cloud, repository variables): docs/chrome-web-store.md.
 on:
   push:
     tags: ["ext-v*"]

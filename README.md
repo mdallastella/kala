@@ -175,47 +175,7 @@ task in the usual quick-add syntax (with preview and `#`/`@` completion), then `
 
 Change the shortcut at `chrome://extensions/shortcuts` ("Activate the extension").
 
-### Releasing to the Chrome Web Store
-
-Bump `version` in `extension/public/manifest.json` and `extension/package.json`, commit, then push a
-matching tag: `git tag ext-vX.Y.Z && git push origin ext-vX.Y.Z`. The `extension` workflow checks the
-versions, runs lint/typecheck/tests, builds, uploads the ZIP and submits it for review. It goes live
-once Google approves it.
-
-One-time setup (the API cannot create an item, and auth is keyless through Workload Identity
-Federation):
-
-1. Upload the first version by hand in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole)
-   (`make ext`, then `cd extension/dist && zip -r ../kala-extension.zip .`), and fill in the Store
-   listing and Privacy tabs (justify `optional_host_permissions`: access to the user's own kala server).
-   Note the item ID and the publisher ID (**Publisher → Settings**).
-2. In Google Cloud, enable the API, create a service account, and let this repo's GitHub OIDC tokens
-   impersonate it:
-
-   ```sh
-   P=my-gcp-project; REPO=mdallastella/kala
-   gcloud services enable chromewebstore.googleapis.com iamcredentials.googleapis.com --project $P
-   gcloud iam service-accounts create cws-publisher --project $P
-   gcloud iam workload-identity-pools create github --location global --project $P
-   gcloud iam workload-identity-pools providers create-oidc github --project $P \
-     --location global --workload-identity-pool github \
-     --issuer-uri https://token.actions.githubusercontent.com \
-     --attribute-mapping google.subject=assertion.sub,attribute.repository=assertion.repository \
-     --attribute-condition "assertion.repository == '$REPO'"
-   POOL=$(gcloud iam workload-identity-pools describe github --location global --project $P --format 'value(name)')
-   gcloud iam service-accounts add-iam-policy-binding cws-publisher@$P.iam.gserviceaccount.com --project $P \
-     --role roles/iam.workloadIdentityUser --member "principalSet://iam.googleapis.com/$POOL/attribute.repository/$REPO"
-   gcloud iam workload-identity-pools providers describe github --location global \
-     --workload-identity-pool github --project $P --format 'value(name)'   # GCP_WIF_PROVIDER
-   ```
-
-3. In the Developer Dashboard, under **Account**, add the service account's email.
-4. Set the repository variables (Settings → Secrets and variables → Actions → Variables):
-   `CWS_PUBLISHER_ID`, `CWS_ITEM_ID`, `GCP_WIF_PROVIDER`,
-   `GCP_SERVICE_ACCOUNT` (`cws-publisher@<project>.iam.gserviceaccount.com`).
-
-If you later change the item's visibility in the dashboard, publish once by hand before the API can
-publish again.
+Releasing to the Chrome Web Store: [docs/chrome-web-store.md](docs/chrome-web-store.md).
 
 ## REST API
 
